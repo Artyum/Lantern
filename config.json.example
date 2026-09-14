@@ -7,7 +7,9 @@
         {
           "name": "Jellyfin",
           "url": "https://jellyfin.example.com",
-          "icon": "jellyfin"
+          "icon": "jellyfin",
+          "col": 1,
+          "row": 1
         },
         {
           "name": "Immich",

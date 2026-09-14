@@ -173,8 +173,8 @@ func TestSetLayoutReordersSectionsAndItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := store.SetLayout([]LayoutSection{
-		{Name: "B", Items: []string{"http://z.lan"}},
-		{Name: "A", Items: []string{"http://y.lan", "http://x.lan"}},
+		{Name: "B", Items: []LayoutItem{{URL: "http://z.lan"}}},
+		{Name: "A", Items: []LayoutItem{{URL: "http://y.lan"}, {URL: "http://x.lan"}}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -189,8 +189,8 @@ func TestSetLayoutReordersSectionsAndItems(t *testing.T) {
 		t.Fatalf("items: %+v", cfg.Sections[1].Items)
 	}
 	if err := store.SetLayout([]LayoutSection{
-		{Name: "A", Items: []string{"http://z.lan"}},
-		{Name: "B", Items: []string{"http://x.lan", "http://y.lan"}},
+		{Name: "A", Items: []LayoutItem{{URL: "http://z.lan"}}},
+		{Name: "B", Items: []LayoutItem{{URL: "http://x.lan"}, {URL: "http://y.lan"}}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -203,20 +203,82 @@ func TestSetLayoutReordersSectionsAndItems(t *testing.T) {
 	}
 }
 
+func TestSetLayoutPositions(t *testing.T) {
+	path := writeTemp(t, `{
+		"sections": [{
+			"name": "A",
+			"items": [
+				{"name": "X", "url": "http://x.lan"},
+				{"name": "Y", "url": "http://y.lan"}
+			]
+		}]
+	}`)
+	store, err := NewStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetLayout([]LayoutSection{{
+		Name: "A",
+		Items: []LayoutItem{
+			{URL: "http://x.lan", Col: 3, Row: 2},
+			{URL: "http://y.lan", Col: 1, Row: 1},
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Sections[0].Items[0].Col != 3 || cfg.Sections[0].Items[0].Row != 2 {
+		t.Fatalf("x: %+v", cfg.Sections[0].Items[0])
+	}
+	if cfg.Sections[0].Items[1].Col != 1 || cfg.Sections[0].Items[1].Row != 1 {
+		t.Fatalf("y: %+v", cfg.Sections[0].Items[1])
+	}
+}
+
 func TestSetLayoutValidation(t *testing.T) {
 	path := writeTemp(t, `{"title":"v1","sections":[{"name":"A","items":[{"name":"X","url":"http://x.lan"}]}]}`)
 	store, err := NewStore(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetLayout([]LayoutSection{{Name: "A", Items: []string{"http://missing.lan"}}}); !errors.Is(err, ErrItemNotFound) {
+	if err := store.SetLayout([]LayoutSection{{Name: "A", Items: []LayoutItem{{URL: "http://missing.lan"}}}}); !errors.Is(err, ErrItemNotFound) {
 		t.Fatalf("missing item: %v", err)
 	}
-	if err := store.SetLayout([]LayoutSection{{Name: "A", Items: []string{"http://x.lan", "http://x.lan"}}}); !errors.Is(err, ErrInvalidLayout) {
+	if err := store.SetLayout([]LayoutSection{{Name: "A", Items: []LayoutItem{{URL: "http://x.lan"}, {URL: "http://x.lan"}}}}); !errors.Is(err, ErrInvalidLayout) {
 		t.Fatalf("duplicate item: %v", err)
 	}
-	if err := store.SetLayout([]LayoutSection{{Name: "Brak", Items: []string{}}}); !errors.Is(err, ErrSectionNotFound) {
+	if err := store.SetLayout([]LayoutSection{{Name: "Brak", Items: []LayoutItem{}}}); !errors.Is(err, ErrSectionNotFound) {
 		t.Fatalf("missing section: %v", err)
+	}
+}
+
+func TestAddItemPlacesAtEnd(t *testing.T) {
+	path := writeTemp(t, `{
+		"sections": [{
+			"name": "A",
+			"items": [
+				{"name": "X", "url": "http://x.lan", "col": 1, "row": 1},
+				{"name": "Y", "url": "http://y.lan", "col": 3, "row": 2}
+			]
+		}]
+	}`)
+	store, err := NewStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddItem("A", Item{Name: "Z", URL: "http://z.lan"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := cfg.Sections[0].Items[len(cfg.Sections[0].Items)-1]
+	if last.URL != "http://z.lan" || last.Col != 4 || last.Row != 2 {
+		t.Fatalf("expected end placement, got %+v", last)
 	}
 }
 

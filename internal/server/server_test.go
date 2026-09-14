@@ -108,11 +108,11 @@ func TestServeCachedIconAndFallback(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/icons/missing", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotFound {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("missing icon %d %s", rec.Code, rec.Body.String())
 	}
-	if rec.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("cache-control %q", rec.Header().Get("Cache-Control"))
+	if rec.Header().Get("Content-Type") != "image/svg+xml" {
+		t.Fatalf("missing icon content-type %q", rec.Header().Get("Content-Type"))
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/icons/__fallback", nil)
@@ -271,6 +271,42 @@ func TestSetLayoutAPI(t *testing.T) {
 	idxInfra := strings.Index(string(raw), `"name": "Infra"`)
 	if idxMedia == -1 || idxTraefik == -1 || idxInfra == -1 || idxTraefik < idxMedia || idxInfra < idxTraefik {
 		t.Fatalf("expected traefik moved to Media before Infra: %s", raw)
+	}
+}
+
+func TestSetLayoutAPIWithPositions(t *testing.T) {
+	h, dir := testServerDir(t)
+	addReq := httptest.NewRequest(http.MethodPost, "/api/item", strings.NewReader(`{"section":"Infra","name":"Pi-hole","url":"http://dns.lan","icon":"pihole"}`))
+	addReq.Header.Set("Content-Type", "application/json")
+	addRec := httptest.NewRecorder()
+	h.ServeHTTP(addRec, addReq)
+	if addRec.Code != 200 {
+		t.Fatalf("add item %d %s", addRec.Code, addRec.Body.String())
+	}
+
+	body := `{
+		"sections": [{
+			"name": "Infra",
+			"items": [
+				{"url": "http://traefik.lan", "col": 2, "row": 1},
+				{"url": "http://dns.lan", "col": 1, "row": 2}
+			]
+		}]
+	}`
+	req := httptest.NewRequest(http.MethodPut, "/api/layout", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("layout %d %s", rec.Code, rec.Body.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `"col": 2`) || !strings.Contains(text, `"row": 2`) {
+		t.Fatalf("expected stored positions: %s", text)
 	}
 }
 

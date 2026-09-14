@@ -6,16 +6,12 @@
 :root {
   --comment-bg: color-mix(in oklab, var(--color-surface-2) 25%, var(--color-surface));
   --surface-gradient: linear-gradient(180deg, var(--color-surface) 0%, color-mix(in oklab, var(--color-surface) 88%, var(--color-surface-2)) 100%);
-  --surface-gradient-soft: linear-gradient(180deg, var(--color-surface) 0%, color-mix(in oklab, var(--color-surface) 96%, var(--color-surface-2)) 100%);
+  --content-gradient: linear-gradient(180deg, var(--color-surface-2) 0%, color-mix(in oklab, var(--color-surface-2) 88%, var(--color-mist)) 100%);
   --surface-highlight: color-mix(in oklab, var(--color-surface) 40%, transparent);
   --surface-highlight-soft: color-mix(in oklab, var(--color-surface) 30%, transparent);
-  --shadow-ambient: color-mix(in oklab, var(--color-ink) 8%, transparent);
-  --shadow-ambient-strong: color-mix(in oklab, var(--color-ink) 14%, transparent);
-  --shadow-lift-sm: 0 1px 0 var(--surface-highlight) inset, 0 1px 0 var(--surface-highlight-soft), 0 3px 12px var(--shadow-ambient), 0 14px 32px -16px var(--shadow-ambient-strong);
-  --shadow-lift-md: 0 1px 0 color-mix(in oklab, var(--color-surface) 35%, transparent) inset, 0 4px 16px -6px color-mix(in oklab, var(--color-ink) 10%, transparent);
   --shadow-card:
-    0 1px 0 var(--surface-highlight-soft), 0 2px 6px color-mix(in oklab, var(--color-ink) 6%, transparent), 0 8px 22px -6px color-mix(in oklab, var(--color-ink) 7%, transparent),
-    0 16px 36px -16px color-mix(in oklab, var(--color-ink) 10%, transparent);
+    0 1px 2px color-mix(in oklab, var(--color-ink) 6%, transparent),
+    0 6px 14px -10px color-mix(in oklab, var(--color-ink) 14%, transparent);
   --shadow-float:
     0 1px 0 color-mix(in oklab, var(--color-surface) 35%, transparent) inset, 0 4px 14px color-mix(in oklab, var(--color-ink) 7%, transparent),
     0 12px 28px -14px color-mix(in oklab, var(--color-ink) 10%, transparent);
@@ -93,21 +89,13 @@ html[data-scheme="dark"] {
     var(--color-surface) 16%,
     color-mix(in oklab, var(--color-surface) 86%, var(--color-surface-2)) 100%
   );
-  --surface-gradient-soft: linear-gradient(
+  --content-gradient: linear-gradient(
     180deg,
-    color-mix(in oklab, var(--color-surface) 92%, white) 0%,
-    var(--color-surface) 24%,
-    color-mix(in oklab, var(--color-surface) 92%, var(--color-surface-2)) 100%
+    var(--color-surface-2) 0%,
+    color-mix(in oklab, var(--color-surface-2) 78%, var(--color-mist)) 100%
   );
   --surface-highlight: color-mix(in oklab, white 18%, transparent);
   --surface-highlight-soft: color-mix(in oklab, white 10%, transparent);
-  --shadow-ambient: color-mix(in oklab, black 34%, transparent);
-  --shadow-ambient-strong: color-mix(in oklab, black 54%, transparent);
-  --shadow-lift-sm:
-    0 1px 0 color-mix(in oklab, white 16%, transparent) inset, 0 1px 0 color-mix(in oklab, white 7%, transparent), 0 10px 24px -18px color-mix(in oklab, black 42%, transparent),
-    0 20px 44px -26px color-mix(in oklab, black 60%, transparent);
-  --shadow-lift-md:
-    0 1px 0 color-mix(in oklab, white 14%, transparent) inset, 0 8px 20px -14px color-mix(in oklab, black 34%, transparent), 0 18px 38px -28px color-mix(in oklab, black 52%, transparent);
   --shadow-card:
     0 1px 0 color-mix(in oklab, white 12%, transparent) inset, 0 2px 8px color-mix(in oklab, black 20%, transparent), 0 10px 24px -8px color-mix(in oklab, black 32%, transparent),
     0 20px 40px -18px color-mix(in oklab, black 40%, transparent);
@@ -808,7 +796,6 @@ html[data-theme="rose-night"] {
   --accent: var(--color-pulse);
   --accent-2: var(--color-pulse-bright);
   --accent-ink: var(--color-on-pulse);
-  --shadow: var(--shadow-card);
   --well: var(--color-surface-2);
   --danger: var(--color-danger);
   --danger-hi: color-mix(in oklab, var(--color-danger) 78%, var(--color-pulse-bright));
@@ -864,7 +851,7 @@ body {
   min-height: 100vh;
   margin: 0 auto;
   padding: 22px 28px 80px;
-  background: var(--surface-gradient-soft);
+  background: var(--content-gradient);
   border-left: 1px solid var(--edge-line);
   border-right: 1px solid var(--edge-line);
   box-shadow: inset 0 1px 0 var(--shine);
@@ -1051,18 +1038,39 @@ h1 {
   width: 14px;
   height: 14px;
 }
-.width-panel input[type="range"] {
-  width: 100%;
-  margin: 14px 0 6px;
-  accent-color: var(--color-pulse);
-  cursor: pointer;
+.grid-cols-picker {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
 }
-.width-panel-value {
+.grid-cols-option {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
   margin: 0;
-  font-size: 1.1rem;
+  padding: 0;
+  border: 1px solid var(--color-frame);
+  border-radius: 12px;
+  background: var(--btn-bg-secondary);
+  box-shadow: var(--btn-shadow-rest);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.95rem;
   font-weight: 700;
-  text-align: center;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+.grid-cols-option:hover {
+  background: var(--btn-bg-secondary-hover);
+  border-color: color-mix(in oklab, var(--color-pulse) 42%, var(--color-frame));
+  color: var(--color-chip-blue-fg);
+  box-shadow: var(--btn-shadow-hover);
+}
+.grid-cols-option[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--color-pulse) 14%, var(--btn-bg-secondary));
+  border-color: color-mix(in oklab, var(--color-pulse) 52%, var(--color-frame));
   color: var(--ink);
+  box-shadow: var(--btn-shadow-hover);
 }
 
 .ghost,
@@ -1103,10 +1111,14 @@ h1 {
 .theme-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 42px;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  flex: 0 0 42px;
+  gap: 0;
   margin: 0;
-  padding: 0 12px 0 10px;
+  padding: 0;
   border: 1px solid var(--color-frame);
   background: var(--btn-bg-secondary);
   box-shadow: var(--btn-shadow-rest);
@@ -1115,6 +1127,10 @@ h1 {
   font: inherit;
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.theme-toggle #theme-label,
+.theme-toggle .theme-caret {
+  display: none;
 }
 .theme-toggle:hover,
 .theme-picker.open .theme-toggle {
@@ -1195,21 +1211,17 @@ h1 {
 
 .workspace {
   display: grid;
-  grid-template-columns:
-    var(--sidebar-current-width)
-    minmax(0, calc(var(--main-width) + var(--sidebar-width) - var(--sidebar-current-width)));
+  grid-template-columns: var(--sidebar-current-width) minmax(0, 1fr);
   gap: var(--workspace-gap);
   align-items: flex-start;
   transition: grid-template-columns 0.22s ease;
 }
 .workspace-main {
-  width: min(
-    100%,
-    calc(var(--main-width) + var(--sidebar-width) - var(--sidebar-current-width))
-  );
+  width: 100%;
+  max-width: var(--main-width);
   min-width: 0;
   container-type: inline-size;
-  transition: width 0.22s ease;
+  transition: max-width 0.22s ease;
 }
 .section-nav {
   position: sticky;
@@ -1365,6 +1377,53 @@ h1 {
 }
 .section-nav.collapsed .nav-item-abbr {
   display: flex;
+}
+
+.section-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: color-mix(in oklab, var(--color-ink) 42%, transparent);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+.section-nav-edge {
+  display: none;
+  position: fixed;
+  left: 0;
+  top: 50%;
+  z-index: 45;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 56px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--edge-line);
+  border-left: 0;
+  border-radius: 0 14px 14px 0;
+  background: var(--color-aside);
+  background-image: var(--aside-gradient);
+  color: var(--muted);
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+.section-nav-edge:hover,
+.section-nav-edge:focus-visible {
+  outline: none;
+  color: var(--color-chip-blue-fg);
+  border-color: color-mix(in oklab, var(--color-pulse) 42%, var(--color-frame));
+  transform: translateY(-50%) translateX(2px);
+}
+.section-nav-edge svg {
+  width: 16px;
+  height: 16px;
 }
 
 .section {
@@ -1536,21 +1595,45 @@ h1 {
 }
 
 .grid {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(var(--grid-cols, 4), minmax(0, 1fr));
   gap: 14px;
   min-height: 56px;
   padding: 2px;
   border-radius: 22px;
   transition: background 0.16s ease, box-shadow 0.16s ease;
 }
-.grid.drag-over {
+#board.searching .grid {
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-rows: none !important;
+}
+#board.searching .tile {
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+.grid.is-dropping {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  padding-bottom: 6px;
+}
+.grid-drop-placeholder {
+  min-height: 148px;
+  border-radius: var(--radius);
+  border: 2px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--well));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  pointer-events: none;
+  z-index: 0;
+  transition: grid-row 0.08s ease, grid-column 0.08s ease, opacity 0.12s ease;
+}
+.grid-drop-placeholder[hidden] {
+  display: none !important;
 }
 
 .tile {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   padding: 16px;
@@ -1566,21 +1649,12 @@ h1 {
 }
 .tile:hover {
   border-color: color-mix(in oklab, var(--color-pulse) 62%, var(--color-frame));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-pulse) 34%, transparent),
-    var(--shadow-lift-sm);
-}
-html[data-scheme="dark"] .tile:hover {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--color-surface) 94%, white) 0%,
-      color-mix(in oklab, var(--color-surface-2) 94%, white) 100%
-    );
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-pulse) 34%, transparent);
 }
 .tile.dragging {
-  opacity: 0.4;
+  opacity: 0.35;
   transform: scale(0.98);
+  box-shadow: none;
 }
 #board.searching .tile { cursor: pointer; }
 
@@ -1891,25 +1965,63 @@ html[data-scheme="dark"] .tile:hover {
   clip: rect(0,0,0,0);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .shell { padding: 14px 12px 56px; }
   .top { padding: 12px; border-radius: 22px; }
-  .search, .search input, .tools, .theme-picker, .theme-toggle { width: 100%; }
+  .search, .search input, .tools { width: 100%; }
+  .theme-picker, .theme-toggle { width: 42px; }
   .width-panel { top: 14px; right: 12px; }
-  .grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
-  .workspace { display: block; }
-  .workspace-main { width: 100%; }
-  .section-nav:not(.collapsed) {
+  #board.searching .grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+  #board:not(.searching) .grid { gap: 10px; }
+  .workspace {
+    display: block;
+    grid-template-columns: none;
+  }
+  .workspace-main {
+    width: 100%;
+    max-width: none;
+  }
+  .workspace > .section-nav {
     position: fixed;
-    left: 12px;
-    top: auto;
-    bottom: 12px;
-    z-index: 40;
-    max-height: min(52vh, 360px);
+    inset: 0 auto 0 0;
+    width: min(280px, 86vw);
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border-radius: 0 22px 22px 0;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease, box-shadow 0.24s ease, visibility 0.24s ease;
+    visibility: hidden;
+    z-index: 60;
+  }
+  .workspace > .section-nav.drawer-open {
+    transform: translateX(0);
+    visibility: visible;
     box-shadow: var(--shadow-float);
+  }
+  .workspace > .section-nav.collapsed {
+    width: min(280px, 86vw);
+  }
+  .section-nav-edge:not([hidden]) {
+    display: inline-flex;
+  }
+  .section-nav-backdrop:not([hidden]) {
+    display: block;
+  }
+  body.nav-drawer-open {
+    overflow: hidden;
+  }
+  .section-nav-edge {
+    top: 96px;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+  .section-nav-edge:hover,
+  .section-nav-edge:focus-visible {
+    transform: translateY(-50%) translateX(2px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mark, .section, .tile, .section-body, .section-body-inner, .section-chevron, .section-nav, .section-nav-toggle svg { animation: none !important; transition: none !important; }
+  .mark, .section, .tile, .section-body, .section-body-inner, .section-chevron, .section-nav, .section-nav-toggle svg, .section-nav-edge { animation: none !important; transition: none !important; }
 }

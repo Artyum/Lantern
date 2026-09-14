@@ -11,17 +11,21 @@ const addSectionBtn = document.getElementById("add-section");
 const sectionNav = document.getElementById("section-nav");
 const sectionNavList = document.getElementById("section-nav-list");
 const sectionNavToggle = document.getElementById("section-nav-toggle");
+const sectionNavEdge = document.getElementById("section-nav-edge");
+const sectionNavBackdrop = document.getElementById("section-nav-backdrop");
 const widthPicker = document.getElementById("width-picker");
 const widthToggle = document.getElementById("width-toggle");
 const widthPanel = document.getElementById("width-panel");
 const widthClose = document.getElementById("width-close");
-const contentWidthInput = document.getElementById("content-width");
-const contentWidthLabel = document.getElementById("content-width-label");
+const gridColsPicker = document.getElementById("grid-cols-picker");
 
 const THEME_KEY = "lantern-theme";
 const COLLAPSED_KEY = "lantern-collapsed";
 const SIDEBAR_KEY = "lantern-sidebar-collapsed";
-const CONTENT_WIDTH_KEY = "lantern-content-width";
+const GRID_COLS_KEY = "lantern-grid-cols";
+const LEGACY_CONTENT_WIDTH_KEY = "lantern-content-width";
+const GRID_COLS_MIN = 4;
+const GRID_COLS_MAX = 8;
 const THEME_LIST = [
   { id: "morning-mist", label: "Morning Mist", light: true },
   { id: "sandy-dawn", label: "Sandy Dawn", light: true },
@@ -219,15 +223,28 @@ document.addEventListener("click", (event) => {
 let data = { title: "Lantern", sections: [] };
 let didDrag = false;
 let dragTile = null;
+let dropPlaceholder = null;
+let dropHoverCell = null;
+let dropCommitCell = null;
+const GRID_CELL_MIN = 168;
+const GRID_GAP = 14;
+const GRID_PAD_X = 4;
+const GRID_WIDTH_SAFETY = 16;
+const GRID_ROW_HEIGHT = 148;
+const gridObservers = new WeakMap();
 let navObserver = null;
 let activeNavSection = "";
 let navScrollTarget = "";
 let navScrollTimer = 0;
-let contentWidth = 1440;
+let gridCols = GRID_COLS_MIN;
+let drawerOpen = false;
 const SIDEBAR_EXPANDED_WIDTH = 220;
 const SIDEBAR_COLLAPSED_WIDTH = 52;
-const SHELL_CHROME_WIDTH = 56;
-const WORKSPACE_GAP = 20;
+const COMPACT_MQ = window.matchMedia("(max-width: 900px)");
+
+function isCompactLayout() {
+  return COMPACT_MQ.matches;
+}
 
 function isSidebarCollapsed() {
   return localStorage.getItem(SIDEBAR_KEY) === "1";
@@ -244,43 +261,113 @@ function setSidebarCollapsed(collapsed) {
   );
 }
 
-function contentWidthLimit() {
-  return Math.max(
-    800,
-    Math.floor(window.innerWidth - SHELL_CHROME_WIDTH - SIDEBAR_EXPANDED_WIDTH - WORKSPACE_GAP),
-  );
-}
-
-function clampContentWidth(value) {
-  const num = Number(value);
-  const max = contentWidthLimit();
-  if (!Number.isFinite(num)) return max;
-  return Math.min(max, Math.max(800, Math.round(num / 10) * 10));
-}
-
-function previewContentWidth(value) {
-  const width = clampContentWidth(value);
-  if (contentWidthInput) {
-    contentWidthInput.max = String(contentWidthLimit());
-    contentWidthInput.setAttribute("aria-valuemax", String(contentWidthLimit()));
-    contentWidthInput.setAttribute("aria-valuenow", String(width));
-    contentWidthInput.setAttribute("aria-valuetext", `${width} px`);
+function setSidebarDrawer(open) {
+  drawerOpen = open;
+  document.body.classList.toggle("nav-drawer-open", open);
+  sectionNav.classList.toggle("drawer-open", open);
+  if (sectionNavBackdrop) sectionNavBackdrop.hidden = !open;
+  if (sectionNavEdge) {
+    sectionNavEdge.hidden = !isCompactLayout() || open || sectionNav.hidden;
+    sectionNavEdge.setAttribute("aria-expanded", open ? "true" : "false");
   }
-  if (contentWidthLabel) contentWidthLabel.textContent = `${width} px`;
+  sectionNavToggle.title = open ? "Close sections" : "Open sections";
+  sectionNavToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  sectionNav.inert = !open;
+  sectionNav.setAttribute("aria-hidden", open ? "false" : "true");
 }
 
-function commitContentWidth(value, persist = true) {
-  const width = clampContentWidth(value);
-  contentWidth = width;
-  if (contentWidthInput) contentWidthInput.value = String(width);
-  previewContentWidth(width);
-  document.documentElement.style.setProperty("--main-width", `${width}px`);
-  if (persist) localStorage.setItem(CONTENT_WIDTH_KEY, String(width));
+function updateSidebarLayout() {
+  const compact = isCompactLayout();
+  document.body.classList.toggle("layout-compact", compact);
+  if (compact) {
+    sectionNav.classList.remove("collapsed");
+    document.documentElement.style.setProperty("--sidebar-current-width", "0px");
+    setSidebarDrawer(drawerOpen);
+    return;
+  }
+  document.body.classList.remove("nav-drawer-open");
+  sectionNav.classList.remove("drawer-open");
+  sectionNav.inert = false;
+  sectionNav.removeAttribute("aria-hidden");
+  if (sectionNavBackdrop) sectionNavBackdrop.hidden = true;
+  if (sectionNavEdge) sectionNavEdge.hidden = true;
+  setSidebarCollapsed(isSidebarCollapsed());
 }
 
-function initContentWidth() {
-  const stored = localStorage.getItem(CONTENT_WIDTH_KEY);
-  commitContentWidth(stored ?? contentWidthLimit(), false);
+function clampGridCols(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return GRID_COLS_MIN;
+  return Math.min(GRID_COLS_MAX, Math.max(GRID_COLS_MIN, Math.round(num)));
+}
+
+function widthFromCols(cols) {
+  const safeCols = clampGridCols(cols);
+  return safeCols * GRID_CELL_MIN
+    + (safeCols - 1) * GRID_GAP
+    + GRID_PAD_X
+    + GRID_WIDTH_SAFETY;
+}
+
+function gridInnerWidth(grid) {
+  if (!grid) return widthFromCols(gridCols) - GRID_PAD_X;
+  const styles = getComputedStyle(grid);
+  const padL = Number.parseFloat(styles.paddingLeft) || 0;
+  const padR = Number.parseFloat(styles.paddingRight) || 0;
+  return Math.max(0, grid.clientWidth - padL - padR);
+}
+
+function colsFromLegacyWidth(width) {
+  const num = Number(width);
+  if (!Number.isFinite(num)) return GRID_COLS_MIN;
+  return clampGridCols(Math.floor((num + GRID_GAP) / (GRID_CELL_MIN + GRID_GAP)));
+}
+
+function updateGridColsPicker() {
+  if (!gridColsPicker) return;
+  for (const option of gridColsPicker.querySelectorAll(".grid-cols-option")) {
+    const selected = Number(option.dataset.cols) === gridCols;
+    option.setAttribute("aria-pressed", selected ? "true" : "false");
+  }
+}
+
+function commitGridCols(value, persist = true) {
+  const cols = clampGridCols(value);
+  const prev = gridCols;
+  gridCols = cols;
+  document.documentElement.style.setProperty("--main-width", `${widthFromCols(cols)}px`);
+  updateGridColsPicker();
+  if (persist) localStorage.setItem(GRID_COLS_KEY, String(cols));
+  if (prev !== cols && (data.sections || []).length) render();
+}
+
+function initGridColsPicker() {
+  if (!gridColsPicker) return;
+  gridColsPicker.replaceChildren();
+  for (let cols = GRID_COLS_MIN; cols <= GRID_COLS_MAX; cols += 1) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "grid-cols-option";
+    option.dataset.cols = String(cols);
+    option.setAttribute("aria-pressed", "false");
+    option.textContent = String(cols);
+    option.addEventListener("click", () => commitGridCols(cols));
+    gridColsPicker.append(option);
+  }
+}
+
+function initGridCols() {
+  initGridColsPicker();
+  const storedCols = localStorage.getItem(GRID_COLS_KEY);
+  if (storedCols) {
+    commitGridCols(storedCols, false);
+    return;
+  }
+  const legacyWidth = localStorage.getItem(LEGACY_CONTENT_WIDTH_KEY);
+  if (legacyWidth) {
+    commitGridCols(colsFromLegacyWidth(legacyWidth), true);
+    return;
+  }
+  commitGridCols(GRID_COLS_MIN, false);
 }
 
 function widthPanelOpen() {
@@ -289,35 +376,39 @@ function widthPanelOpen() {
 
 function openWidthPanel() {
   closeThemeMenu();
-  previewContentWidth(contentWidth);
-  if (contentWidthInput) contentWidthInput.value = String(contentWidth);
+  updateGridColsPicker();
   widthPanel.hidden = false;
   widthToggle.setAttribute("aria-expanded", "true");
   widthPicker.classList.add("open");
-  contentWidthInput?.focus();
+  gridColsPicker?.querySelector(`[data-cols="${gridCols}"]`)?.focus();
 }
 
 function closeWidthPanel() {
   widthPanel.hidden = true;
   widthToggle.setAttribute("aria-expanded", "false");
   widthPicker.classList.remove("open");
-  previewContentWidth(contentWidth);
-  if (contentWidthInput) contentWidthInput.value = String(contentWidth);
+  updateGridColsPicker();
 }
 
 function initSidebar() {
-  setSidebarCollapsed(isSidebarCollapsed());
+  drawerOpen = false;
+  updateSidebarLayout();
 }
 
 sectionNavToggle.addEventListener("click", () => {
+  if (isCompactLayout()) {
+    setSidebarDrawer(false);
+    return;
+  }
   setSidebarCollapsed(!isSidebarCollapsed());
 });
 
-window.addEventListener("resize", () => {
-  const width = clampContentWidth(contentWidth);
-  if (width !== contentWidth) commitContentWidth(width, false);
-  else previewContentWidth(contentWidth);
-}, { passive: true });
+sectionNavEdge?.addEventListener("click", () => setSidebarDrawer(true));
+sectionNavBackdrop?.addEventListener("click", () => setSidebarDrawer(false));
+COMPACT_MQ.addEventListener("change", () => {
+  drawerOpen = false;
+  updateSidebarLayout();
+});
 
 function sectionElement(name) {
   return [...board.querySelectorAll(".section")].find(
@@ -379,11 +470,17 @@ function renderNav(query) {
     btn.append(abbr, label, count);
     btn.title = section.name;
     btn.setAttribute("aria-current", section.name === activeNavSection ? "true" : "false");
-    btn.addEventListener("click", () => scrollToSection(section.name));
+    btn.addEventListener("click", () => {
+      scrollToSection(section.name);
+      if (isCompactLayout()) setSidebarDrawer(false);
+    });
     li.append(btn);
     sectionNavList.append(li);
   }
   sectionNav.hidden = shown === 0;
+  if (sectionNavEdge) {
+    sectionNavEdge.hidden = !isCompactLayout() || drawerOpen || shown === 0;
+  }
 }
 
 function setupNavObserver() {
@@ -419,17 +516,21 @@ widthToggle?.addEventListener("click", () => {
   else openWidthPanel();
 });
 widthClose?.addEventListener("click", closeWidthPanel);
-contentWidthInput?.addEventListener("input", () => {
-  commitContentWidth(contentWidthInput.value);
-});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && widthPanelOpen()) {
+  if (event.key !== "Escape") return;
+  if (widthPanelOpen()) {
     event.preventDefault();
     closeWidthPanel();
     widthToggle.focus();
+    return;
+  }
+  if (isCompactLayout() && drawerOpen) {
+    event.preventDefault();
+    setSidebarDrawer(false);
+    sectionNavEdge?.focus();
   }
 });
-initContentWidth();
+initGridCols();
 initSidebar();
 
 function loadCollapsed() {
@@ -482,11 +583,222 @@ function toggleCollapsed(name) {
   }
 }
 
+function itemHasPosition(item) {
+  return item.col > 0 && item.row > 0;
+}
+
+function cellIndex(col, row, cols) {
+  const safeCols = Math.max(1, cols);
+  return (row - 1) * safeCols + (col - 1);
+}
+
+function indexToCell(index, cols) {
+  const safeCols = Math.max(1, cols);
+  const safeIndex = Math.max(0, index);
+  return {
+    col: (safeIndex % safeCols) + 1,
+    row: Math.floor(safeIndex / safeCols) + 1,
+  };
+}
+
+function resolvePositions(items, cols) {
+  const safeCols = Math.max(1, cols);
+  const out = (items || []).map((item) => ({ ...item }));
+  let maxIndex = -1;
+  for (const item of out) {
+    if (itemHasPosition(item)) {
+      const col = Math.min(item.col, safeCols);
+      item.col = col;
+      const idx = cellIndex(col, item.row, safeCols);
+      if (idx > maxIndex) maxIndex = idx;
+      continue;
+    }
+    const nextIndex = maxIndex + 1;
+    const cell = indexToCell(nextIndex, safeCols);
+    item.col = cell.col;
+    item.row = cell.row;
+    maxIndex = nextIndex;
+  }
+  return out;
+}
+
+function maxColsForWidth(width) {
+  return Math.max(1, Math.floor((width + GRID_GAP) / (GRID_CELL_MIN + GRID_GAP)));
+}
+
+function estimateGridWidth() {
+  const main = document.querySelector(".workspace-main");
+  if (main?.clientWidth) return Math.max(0, main.clientWidth - GRID_PAD_X);
+  return widthFromCols(gridCols) - GRID_PAD_X;
+}
+
+function effectiveGridCols(grid) {
+  const width = grid ? gridInnerWidth(grid) : estimateGridWidth();
+  return Math.min(gridCols, maxColsForWidth(width));
+}
+
+function toDisplayPosition(item, displayCols) {
+  if (!itemHasPosition(item)) return { col: item.col, row: item.row };
+  const idx = cellIndex(item.col, item.row, gridCols);
+  return indexToCell(idx, displayCols);
+}
+
+function toCanonicalPosition(col, row, displayCols) {
+  const idx = cellIndex(col, row, displayCols);
+  return indexToCell(idx, gridCols);
+}
+
+function gridMetrics(grid) {
+  const cols = effectiveGridCols(grid);
+  const styles = getComputedStyle(grid);
+  const gap = Number.parseFloat(styles.columnGap) || GRID_GAP;
+  const width = gridInnerWidth(grid);
+  const cellWidth = (width - gap * (cols - 1)) / cols;
+  const rowHeight = Number.parseFloat(styles.getPropertyValue("--grid-row-height")) || GRID_ROW_HEIGHT;
+  return { cols, gap, cellWidth, rowHeight };
+}
+
+function gridMaxRow(items, displayCols) {
+  const resolved = resolvePositions(items, gridCols);
+  let maxRow = 1;
+  for (const item of resolved) {
+    const pos = toDisplayPosition(item, displayCols);
+    if (pos.row > maxRow) maxRow = pos.row;
+  }
+  return maxRow;
+}
+
+function setGridRowCount(grid, rowCount) {
+  const rows = Math.max(1, rowCount);
+  grid.style.gridTemplateRows = `repeat(${rows}, minmax(${GRID_ROW_HEIGHT}px, auto))`;
+  grid.style.minHeight = `${rows * GRID_ROW_HEIGHT + Math.max(0, rows - 1) * GRID_GAP + 4}px`;
+}
+
+function applyGridSizing(grid, items) {
+  const cols = effectiveGridCols(grid);
+  grid.style.setProperty("--grid-cols", String(cols));
+  const canonical = resolvePositions(items, gridCols);
+  setGridRowCount(grid, gridMaxRow(canonical, cols));
+  return canonical.map((item) => {
+    const pos = toDisplayPosition(item, cols);
+    return { ...item, col: pos.col, row: pos.row };
+  });
+}
+
+function clampGridCol(col, cols) {
+  return Math.min(cols, Math.max(1, col));
+}
+
+function sectionItemsForGrid(grid) {
+  const sectionName = grid.closest(".section")?.dataset.sectionName;
+  if (!sectionName) return [];
+  const section = (data.sections || []).find((entry) => entry.name === sectionName);
+  return section?.items || [];
+}
+
+function beginGridDrop(grid) {
+  const cols = effectiveGridCols(grid);
+  setGridRowCount(grid, gridMaxRow(sectionItemsForGrid(grid), cols) + 1);
+  grid.classList.add("is-dropping");
+}
+
+function endGridDrop() {
+  if (dropPlaceholder) dropPlaceholder.hidden = true;
+  dropHoverCell = null;
+  dropCommitCell = null;
+  for (const grid of board.querySelectorAll(".grid.is-dropping")) {
+    grid.classList.remove("is-dropping");
+    const sectionName = grid.closest(".section")?.dataset.sectionName;
+    const section = (data.sections || []).find((entry) => entry.name === sectionName);
+    if (section) applyGridSizing(grid, section.items || []);
+  }
+}
+
+function syncTilePositions(grid, sectionName, items) {
+  const cols = effectiveGridCols(grid);
+  grid.style.setProperty("--grid-cols", String(cols));
+  const canonical = resolvePositions(items, gridCols);
+  setGridRowCount(grid, gridMaxRow(canonical, cols));
+  for (const item of canonical) {
+    const pos = toDisplayPosition(item, cols);
+    const tile = grid.querySelector(`.tile[data-url="${CSS.escape(item.url)}"]`);
+    if (!tile) continue;
+    tile.dataset.col = String(pos.col);
+    tile.dataset.row = String(pos.row);
+    tile.style.gridColumn = String(pos.col);
+    tile.style.gridRow = String(pos.row);
+  }
+}
+
+function observeGrid(grid, sectionName) {
+  if (gridObservers.has(grid)) return;
+  const observer = new ResizeObserver(() => {
+    if (searching()) return;
+    const section = (data.sections || []).find((entry) => entry.name === sectionName);
+    if (!section) return;
+    syncTilePositions(grid, sectionName, section.items || []);
+  });
+  observer.observe(grid);
+  gridObservers.set(grid, observer);
+}
+
+function occupantAt(posMap, col, row, skipUrl = "") {
+  for (const [url, pos] of posMap) {
+    if (url === skipUrl) continue;
+    if (pos.col === col && pos.row === row) return url;
+  }
+  return "";
+}
+
+function findNextFreeIndex(startIdx, posMap, cols, skipUrl) {
+  let idx = startIdx;
+  while (true) {
+    const cell = indexToCell(idx, cols);
+    if (!occupantAt(posMap, cell.col, cell.row, skipUrl)) return idx;
+    idx += 1;
+  }
+}
+
+function placeWithPush(sectionName, draggedUrl, col, row) {
+  const section = (data.sections || []).find((entry) => entry.name === sectionName);
+  const grid = sectionElement(sectionName)?.querySelector(".grid");
+  if (!section || !grid) return;
+  const { cols } = gridMetrics(grid);
+  const canonical = resolvePositions(section.items || [], gridCols);
+  const posMap = new Map(
+    canonical.map((item) => [item.url, toDisplayPosition(item, cols)]),
+  );
+
+  function place(url, targetCol, targetRow) {
+    const blocked = occupantAt(posMap, targetCol, targetRow, url);
+    if (blocked) {
+      const nextIdx = findNextFreeIndex(cellIndex(targetCol, targetRow, cols) + 1, posMap, cols, blocked);
+      const next = indexToCell(nextIdx, cols);
+      place(blocked, next.col, next.row);
+    }
+    posMap.set(url, { col: targetCol, row: targetRow });
+  }
+
+  place(draggedUrl, col, row);
+  for (const item of section.items || []) {
+    const pos = posMap.get(item.url);
+    if (!pos) continue;
+    const canon = toCanonicalPosition(pos.col, pos.row, cols);
+    item.col = canon.col;
+    item.row = canon.row;
+  }
+  syncTilePositions(grid, sectionName, section.items || []);
+}
+
 function layoutPayload(sections) {
   return {
     sections: (sections || []).map((section) => ({
       name: section.name,
-      items: (section.items || []).map((item) => item.url),
+      items: (section.items || []).map((item) => ({
+        url: item.url,
+        col: item.col || 0,
+        row: item.row || 0,
+      })),
     })),
   };
 }
@@ -525,7 +837,7 @@ function tile(item, sectionName) {
   wrap.dataset.section = sectionName;
   const handle = document.createElement("span");
   handle.className = "tile-drag";
-  handle.title = "Drag to reorder";
+  handle.title = "Drag to any grid cell";
   handle.setAttribute("role", "img");
   handle.setAttribute("aria-label", "Drag tile");
   handle.draggable = !searching();
@@ -588,7 +900,11 @@ function onDragStart(event, wrap) {
   }
   dragTile = wrap;
   didDrag = false;
+  dropCommitCell = null;
+  dropHoverCell = null;
   dragTile.classList.add("dragging");
+  const grid = wrap.parentElement;
+  if (grid?.classList.contains("grid")) beginGridDrop(grid);
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", dragTile.dataset.url || "");
   if (event.dataTransfer.setDragImage) {
@@ -602,54 +918,79 @@ function onDragStart(event, wrap) {
   }
 }
 
-async function onDragEnd() {
-  if (dragTile) dragTile.classList.remove("dragging");
-  for (const grid of board.querySelectorAll(".grid")) {
-    grid.classList.remove("drag-over");
-  }
-  if (didDrag) await syncFromDOM();
-  dragTile = null;
+function ensureDropPlaceholder(grid) {
+  if (dropPlaceholder?.parentElement === grid) return dropPlaceholder;
+  const el = document.createElement("div");
+  el.className = "grid-drop-placeholder";
+  el.setAttribute("aria-hidden", "true");
+  el.hidden = true;
+  grid.append(el);
+  dropPlaceholder = el;
+  return el;
 }
 
-function dropTarget(event) {
-  const over = event.target.closest(".tile");
-  const grid = event.target.closest(".grid");
-  return { over, grid };
+function showDropPlaceholder(grid, col, row) {
+  const { cols } = gridMetrics(grid);
+  const targetCol = clampGridCol(col, cols);
+  const targetRow = Math.max(1, row);
+  const items = sectionItemsForGrid(grid);
+  setGridRowCount(grid, Math.max(gridMaxRow(items, cols), targetRow + 1));
+  grid.classList.add("is-dropping");
+  const placeholder = ensureDropPlaceholder(grid);
+  placeholder.style.gridColumn = String(targetCol);
+  placeholder.style.gridRow = String(targetRow);
+  placeholder.hidden = false;
+  dropHoverCell = { col: targetCol, row: targetRow, grid };
+}
+
+function cellFromPointer(event, grid) {
+  const rect = grid.getBoundingClientRect();
+  const styles = getComputedStyle(grid);
+  const padding = Number.parseFloat(styles.paddingLeft) || 2;
+  const { cols, gap, cellWidth, rowHeight } = gridMetrics(grid);
+  const x = event.clientX - rect.left - padding;
+  const y = event.clientY - rect.top - padding;
+  const col = Math.min(cols, Math.max(1, Math.floor(x / (cellWidth + gap)) + 1));
+  const row = Math.max(1, Math.floor(y / (rowHeight + gap)) + 1);
+  return { col, row };
+}
+
+async function onDragEnd() {
+  const tile = dragTile;
+  const target = dropCommitCell
+    ?? (dropHoverCell?.grid === tile?.parentElement ? dropHoverCell : null);
+  if (tile) tile.classList.remove("dragging");
+  endGridDrop();
+  if (didDrag && tile && target) {
+    placeWithPush(tile.dataset.section, tile.dataset.url, target.col, target.row);
+    await syncFromDOM();
+  }
+  dragTile = null;
 }
 
 function onGridDragOver(event) {
   if (!dragTile) return;
-  const { over, grid } = dropTarget(event);
-  if (!grid) return;
+  const grid = event.target.closest(".grid");
+  if (!grid || grid !== dragTile.parentElement) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = "move";
-  grid.classList.add("drag-over");
   didDrag = true;
-
-  if (over && over !== dragTile) {
-    const rect = over.getBoundingClientRect();
-    const before = event.clientX < rect.left + rect.width / 2;
-    const next = before ? over : over.nextSibling;
-    if (dragTile !== next && dragTile.nextSibling !== next) {
-      grid.insertBefore(dragTile, next);
-    }
-    return;
-  }
-  if (!over && dragTile.parentElement !== grid) {
-    grid.append(dragTile);
-  }
+  const cell = cellFromPointer(event, grid);
+  showDropPlaceholder(grid, cell.col, cell.row);
 }
 
 function onGridDragLeave(event) {
   const grid = event.currentTarget;
-  if (!grid.contains(event.relatedTarget)) {
-    grid.classList.remove("drag-over");
+  if (!grid.contains(event.relatedTarget) && dropHoverCell?.grid === grid) {
+    if (dropPlaceholder) dropPlaceholder.hidden = true;
+    dropHoverCell = null;
   }
 }
 
 function onGridDrop(event) {
   event.preventDefault();
   didDrag = true;
+  dropCommitCell = cellFromPointer(event, event.currentTarget);
 }
 
 function itemByUrl(url) {
@@ -668,7 +1009,12 @@ function sectionsFromDOM() {
     const items = [];
     for (const el of wrap.querySelectorAll(".tile")) {
       const item = itemByUrl(el.dataset.url);
-      if (item) items.push(item);
+      if (!item) continue;
+      items.push({
+        ...item,
+        col: Number(el.dataset.col) || item.col || 0,
+        row: Number(el.dataset.row) || item.row || 0,
+      });
     }
     sections.push({ name, items });
   }
@@ -676,10 +1022,8 @@ function sectionsFromDOM() {
 }
 
 async function syncFromDOM() {
-  const sections = sectionsFromDOM();
-  data.sections = sections;
   try {
-    await saveLayout(sections);
+    await saveLayout(data.sections);
   } catch {
     await boot();
   }
@@ -717,6 +1061,9 @@ function moveButton(label, icon, disabled, onClick, extraClass) {
 function render() {
   const query = (q.value || "").trim().toLowerCase();
   board.classList.remove("ready");
+  dropPlaceholder = null;
+  dropHoverCell = null;
+  dropCommitCell = null;
   board.replaceChildren();
   board.classList.toggle("searching", Boolean(query));
   let shown = 0;
@@ -759,12 +1106,27 @@ function render() {
     h.append(toggle, rule, moves);
     const grid = document.createElement("div");
     grid.className = "grid";
+    grid.style.setProperty("--grid-row-height", `${GRID_ROW_HEIGHT}px`);
     grid.addEventListener("dragover", onGridDragOver);
     grid.addEventListener("dragleave", onGridDragLeave);
     grid.addEventListener("drop", onGridDrop);
-    for (const item of items) {
-      grid.append(tile(item, section.name));
+    const displayCols = query ? gridCols : effectiveGridCols(null);
+    const resolvedItems = query ? items : resolvePositions(items, gridCols);
+    for (const item of resolvedItems) {
+      const el = tile(item, section.name);
+      if (!query) {
+        const pos = toDisplayPosition(item, displayCols);
+        el.dataset.col = String(pos.col);
+        el.dataset.row = String(pos.row);
+        el.style.gridColumn = String(pos.col);
+        el.style.gridRow = String(pos.row);
+      }
+      grid.append(el);
       shown += 1;
+    }
+    if (!query) {
+      applyGridSizing(grid, items);
+      observeGrid(grid, section.name);
     }
     const body = document.createElement("div");
     body.className = "section-body";

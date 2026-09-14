@@ -19,9 +19,15 @@ var (
 	ErrInvalidLayout   = errors.New("invalid layout")
 )
 
+type LayoutItem struct {
+	URL string
+	Col int
+	Row int
+}
+
 type LayoutSection struct {
 	Name  string
-	Items []string
+	Items []LayoutItem
 }
 
 type Config struct {
@@ -38,6 +44,8 @@ type Item struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
 	Icon string `json:"icon,omitempty"`
+	Col  int    `json:"col,omitempty"`
+	Row  int    `json:"row,omitempty"`
 }
 
 type Store struct {
@@ -77,6 +85,7 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("sections[%d]: duplicate name %q", si, sec.Name)
 		}
 		seen[key] = struct{}{}
+		cells := map[string]struct{}{}
 		for ii, item := range sec.Items {
 			if item.Name == "" {
 				return fmt.Errorf("sections[%d].items[%d]: name is required", si, ii)
@@ -92,6 +101,19 @@ func (c *Config) Validate() error {
 				if err := validateIcon(item.Icon); err != nil {
 					return fmt.Errorf("sections[%d].items[%d]: %w", si, ii, err)
 				}
+			}
+			if (item.Col > 0) != (item.Row > 0) {
+				return fmt.Errorf("sections[%d].items[%d]: col and row must both be set", si, ii)
+			}
+			if item.Col < 0 || item.Row < 0 {
+				return fmt.Errorf("sections[%d].items[%d]: col and row must be positive", si, ii)
+			}
+			if ItemHasPosition(item) {
+				cell := fmt.Sprintf("%d:%d", item.Col, item.Row)
+				if _, dup := cells[cell]; dup {
+					return fmt.Errorf("sections[%d].items[%d]: duplicate grid cell (%d, %d)", si, ii, item.Col, item.Row)
+				}
+				cells[cell] = struct{}{}
 			}
 		}
 	}
@@ -200,6 +222,8 @@ func (s *Store) UpdateItem(sectionName, originalURL string, next Item) error {
 			if itemURLTaken(cfg, next.URL, sectionName, originalURL) {
 				return ErrItemExists
 			}
+			next.Col = item.Col
+			next.Row = item.Row
 			cfg.Sections[i].Items[j] = next
 			found = true
 			break
@@ -232,6 +256,9 @@ func (s *Store) AddItem(sectionName string, next Item) error {
 	for i, sec := range cfg.Sections {
 		if sec.Name != sectionName {
 			continue
+		}
+		if !ItemHasPosition(next) {
+			next.Col, next.Row = PlaceItemAtEnd(sec.Items, DefaultGridCols)
 		}
 		cfg.Sections[i].Items = append(cfg.Sections[i].Items, next)
 		found = true
@@ -362,8 +389,8 @@ func (s *Store) SetLayout(layout []LayoutSection) error {
 		seenSections[name] = struct{}{}
 
 		sec := Section{Name: name, Items: make([]Item, 0, len(entry.Items))}
-		for _, rawURL := range entry.Items {
-			url := strings.TrimSpace(rawURL)
+		for _, layoutItem := range entry.Items {
+			url := strings.TrimSpace(layoutItem.URL)
 			if url == "" {
 				return ErrInvalidLayout
 			}
@@ -375,6 +402,13 @@ func (s *Store) SetLayout(layout []LayoutSection) error {
 				return ErrInvalidLayout
 			}
 			usedURLs[url] = struct{}{}
+			if layoutItem.Col > 0 && layoutItem.Row > 0 {
+				item.Col = layoutItem.Col
+				item.Row = layoutItem.Row
+			} else {
+				item.Col = 0
+				item.Row = 0
+			}
 			sec.Items = append(sec.Items, item)
 		}
 		next = append(next, sec)

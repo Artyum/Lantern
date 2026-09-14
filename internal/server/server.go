@@ -24,6 +24,8 @@ type APIItem struct {
 	URL        string `json:"url"`
 	Icon       string `json:"icon"`
 	IconSource string `json:"iconSource,omitempty"`
+	Col        int    `json:"col,omitempty"`
+	Row        int    `json:"row,omitempty"`
 }
 
 type APISection struct {
@@ -40,9 +42,41 @@ type sectionNameBody struct {
 	Name string `json:"name"`
 }
 
+type layoutItemBody struct {
+	URL string `json:"url"`
+	Col int    `json:"col"`
+	Row int    `json:"row"`
+}
+
+func (l *layoutItemBody) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return fmt.Errorf("empty layout item")
+	}
+	if data[0] == '"' {
+		var url string
+		if err := json.Unmarshal(data, &url); err != nil {
+			return err
+		}
+		l.URL = url
+		return nil
+	}
+	var raw struct {
+		URL string `json:"url"`
+		Col int    `json:"col"`
+		Row int    `json:"row"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	l.URL = raw.URL
+	l.Col = raw.Col
+	l.Row = raw.Row
+	return nil
+}
+
 type layoutSectionBody struct {
-	Name  string   `json:"name"`
-	Items []string `json:"items"`
+	Name  string           `json:"name"`
+	Items []layoutItemBody `json:"items"`
 }
 
 type layoutBody struct {
@@ -130,6 +164,8 @@ func (s *Server) toAPIItem(item config.Item) APIItem {
 		URL:        item.URL,
 		Icon:       icon,
 		IconSource: item.Icon,
+		Col:        item.Col,
+		Row:        item.Row,
 	}
 }
 
@@ -159,6 +195,8 @@ func (s *Server) updateItem(w http.ResponseWriter, r *http.Request) {
 		Name: in.Name,
 		URL:  in.URL,
 		Icon: in.Icon,
+		Col:  existing.Col,
+		Row:  existing.Row,
 	}
 	if len(fileBody) > 0 {
 		key := existing.Icon
@@ -313,9 +351,17 @@ func (s *Server) setLayout(w http.ResponseWriter, r *http.Request) {
 	}
 	layout := make([]config.LayoutSection, 0, len(in.Sections))
 	for _, sec := range in.Sections {
+		items := make([]config.LayoutItem, 0, len(sec.Items))
+		for _, item := range sec.Items {
+			items = append(items, config.LayoutItem{
+				URL: strings.TrimSpace(item.URL),
+				Col: item.Col,
+				Row: item.Row,
+			})
+		}
 		layout = append(layout, config.LayoutSection{
 			Name:  strings.TrimSpace(sec.Name),
-			Items: sec.Items,
+			Items: items,
 		})
 	}
 	if err := s.store.SetLayout(layout); err != nil {
@@ -451,6 +497,21 @@ func uploadExt(filename string, body []byte) (string, error) {
 	return "", fmt.Errorf("unsupported icon type")
 }
 
+func (s *Server) itemByIconKey(key string) (config.Item, bool) {
+	cfg, _, err := s.store.Get()
+	if err != nil {
+		return config.Item{}, false
+	}
+	for _, sec := range cfg.Sections {
+		for _, item := range sec.Items {
+			if icons.ItemKey(item) == key {
+				return item, true
+			}
+		}
+	}
+	return config.Item{}, false
+}
+
 func (s *Server) icon(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	if key == "__fallback" || !validKey(key) {
@@ -459,8 +520,15 @@ func (s *Server) icon(w http.ResponseWriter, r *http.Request) {
 	}
 	data, ct, ok := s.icons.Read(key)
 	if !ok {
-		w.Header().Set("Cache-Control", "no-store")
-		http.NotFound(w, r)
+		if item, found := s.itemByIconKey(key); found {
+			s.icons.ForgetFail(key)
+			if err := s.icons.Resolve(item); err == nil {
+				data, ct, ok = s.icons.Read(key)
+			}
+		}
+	}
+	if !ok {
+		writeFallback(w)
 		return
 	}
 	w.Header().Set("Content-Type", ct)

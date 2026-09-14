@@ -17,7 +17,7 @@
       document.documentElement.setAttribute("data-scheme", dark[id] ? "dark" : "light");
     })();
   </script>
-  <link rel="stylesheet" href="/app.css?v=15">
+  <link rel="stylesheet" href="/app.css?v=26">
   <link rel="icon" href="/icons/__fallback" type="image/svg+xml">
 </head>
 <body>
@@ -37,8 +37,8 @@
       </label>
       <button type="button" id="add-section" class="ghost" title="Add section">Add section</button>
       <div class="width-picker" id="width-picker">
-        <button type="button" id="width-toggle" class="width-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="width-panel" title="Content width">
-          <span class="sr-only">Content width</span>
+        <button type="button" id="width-toggle" class="width-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="width-panel" title="Cards per row">
+          <span class="sr-only">Cards per row</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
         </button>
       </div>
@@ -70,15 +70,19 @@
     </div>
   </div>
   </div>
-  <div id="width-panel" class="width-panel" role="dialog" aria-label="Content width" hidden>
+  <button type="button" id="section-nav-edge" class="section-nav-edge" hidden aria-controls="section-nav" aria-expanded="false" title="Open sections">
+    <span class="sr-only">Open sections</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6l6 6-6 6"/></svg>
+  </button>
+  <div id="section-nav-backdrop" class="section-nav-backdrop" hidden></div>
+  <div id="width-panel" class="width-panel" role="dialog" aria-label="Cards per row" hidden>
     <div class="width-panel-head">
-      <span class="width-panel-title">Content width</span>
+      <span class="width-panel-title">Cards per row</span>
       <button type="button" id="width-close" class="width-panel-close" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <input id="content-width" type="range" min="800" max="1440" value="1440" step="10" aria-valuemin="800" aria-valuemax="1440" aria-valuenow="1440" aria-valuetext="1440 px">
-    <p id="content-width-label" class="width-panel-value">1440 px</p>
+    <div id="grid-cols-picker" class="grid-cols-picker" role="group" aria-label="Cards per row"></div>
   </div>
   <dialog id="item-editor" class="item-editor">
     <form id="item-form">
@@ -148,6 +152,6 @@
       </div>
     </form>
   </dialog>
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=19"></script>
 </body>
 </html>
