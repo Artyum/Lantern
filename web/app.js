@@ -1155,18 +1155,36 @@ async function syncFromDOM() {
   }
 }
 
-async function moveSection(index, dir) {
+function updateSectionMoveButtons() {
+  const sections = [...board.querySelectorAll(".section")];
+  sections.forEach((section, index) => {
+    section.querySelector('[data-section-direction="up"]').disabled = index === 0;
+    section.querySelector('[data-section-direction="down"]').disabled = index === sections.length - 1;
+  });
+}
+
+async function moveSection(name, dir) {
   if (searching()) return;
-  const next = index + dir;
   const list = data.sections || [];
+  const index = list.findIndex((section) => section.name === name);
+  const next = index + dir;
   if (index < 0 || next < 0 || next >= list.length) return;
+  const neighbor = list[next];
   const copy = list.slice();
   const [section] = copy.splice(index, 1);
   copy.splice(next, 0, section);
-  data.sections = copy;
   try {
     await saveLayout(copy);
-    render();
+    data.sections = copy;
+    const moved = sectionElement(name);
+    const adjacent = sectionElement(neighbor.name);
+    if (moved && adjacent && moved !== adjacent) {
+      if (dir < 0) board.insertBefore(moved, adjacent);
+      else adjacent.after(moved);
+    }
+    updateSectionMoveButtons();
+    renderNav("");
+    setupNavObserver();
   } catch {
     await boot();
   }
@@ -1223,9 +1241,13 @@ function render() {
     rule.setAttribute("aria-hidden", "true");
     const moves = document.createElement("span");
     moves.className = "section-moves";
+    const moveUp = moveButton("Move section up", ICON_UP, index === 0, () => moveSection(section.name, -1));
+    moveUp.dataset.sectionDirection = "up";
+    const moveDown = moveButton("Move section down", ICON_DOWN, index === total - 1, () => moveSection(section.name, 1));
+    moveDown.dataset.sectionDirection = "down";
     moves.append(
-      moveButton("Move section up", ICON_UP, index === 0, () => moveSection(index, -1)),
-      moveButton("Move section down", ICON_DOWN, index === total - 1, () => moveSection(index, 1)),
+      moveUp,
+      moveDown,
       moveButton(`Add tile to ${section.name}`, ICON_PLUS, false, () => openCreate(section.name)),
       moveButton(`Delete section ${section.name}`, ICON_TRASH, false, () => openDeleteSection(section), "danger-icon"),
     );
@@ -1541,7 +1563,10 @@ sectionConfirmForm.addEventListener("submit", async (event) => {
 async function boot() {
   const res = await fetch("/api/config");
   if (!res.ok) throw new Error("config");
-  const incoming = await res.json();
+  applyConfig(await res.json());
+}
+
+function applyConfig(incoming) {
   titleEl.textContent = incoming.title || "Lantern";
   document.title = incoming.title || "Lantern";
   data = {
@@ -1551,7 +1576,19 @@ async function boot() {
   render();
 }
 
-boot().catch(() => {
-  empty.hidden = false;
-  empty.textContent = "Could not load configuration.";
-});
+const initialConfig = document.getElementById("initial-config");
+if (initialConfig?.textContent) {
+  try {
+    applyConfig(JSON.parse(initialConfig.textContent));
+  } catch {
+    boot().catch(() => {
+      empty.hidden = false;
+      empty.textContent = "Could not load configuration.";
+    });
+  }
+} else {
+  boot().catch(() => {
+    empty.hidden = false;
+    empty.textContent = "Could not load configuration.";
+  });
+}

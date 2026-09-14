@@ -113,14 +113,18 @@ func New(store *config.Store, resolver *icons.Resolver) http.Handler {
 		static = web.FS
 	}
 	fileServer := http.FileServer(http.FS(static))
-	s.mux.Handle("GET /", staticAssetsHandler(fileServer))
+	s.mux.Handle("GET /", s.staticAssetsHandler(fileServer))
 	return s.mux
 }
 
-func staticAssetsHandler(next http.Handler) http.Handler {
+func (s *Server) staticAssetsHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			s.index(w, r)
+			return
+		}
 		switch r.URL.Path {
-		case "/", "/index.html", "/app.css", "/app.js":
+		case "/app.css", "/app.js":
 			w.Header().Set("Cache-Control", "no-cache")
 		}
 		next.ServeHTTP(w, r)
@@ -133,10 +137,46 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) apiConfig(w http.ResponseWriter, _ *http.Request) {
-	cfg, reloaded, err := s.store.Get()
+	out, err := s.currentAPIConfig()
 	if err != nil {
 		http.Error(w, "config unavailable", http.StatusInternalServerError)
 		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
+	out, err := s.currentAPIConfig()
+	if err != nil {
+		http.Error(w, "config unavailable", http.StatusInternalServerError)
+		return
+	}
+	configJSON, err := json.Marshal(out)
+	if err != nil {
+		http.Error(w, "config unavailable", http.StatusInternalServerError)
+		return
+	}
+	page, err := web.FS.ReadFile("index.html")
+	if err != nil {
+		http.Error(w, "page unavailable", http.StatusInternalServerError)
+		return
+	}
+	page = []byte(strings.Replace(
+		string(page),
+		"<!-- initial-config -->",
+		`<script id="initial-config" type="application/json">`+string(configJSON)+`</script>`,
+		1,
+	))
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(page)
+}
+
+func (s *Server) currentAPIConfig() (APIConfig, error) {
+	cfg, reloaded, err := s.store.Get()
+	if err != nil {
+		return APIConfig{}, err
 	}
 	if reloaded {
 		go s.icons.Warmup(cfg)
@@ -149,8 +189,7 @@ func (s *Server) apiConfig(w http.ResponseWriter, _ *http.Request) {
 		}
 		out.Sections = append(out.Sections, as)
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(out)
+	return out, nil
 }
 
 func (s *Server) toAPIItem(item config.Item) APIItem {
