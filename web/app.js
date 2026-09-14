@@ -8,6 +8,8 @@ const themeMenu = document.getElementById("theme-menu");
 const themeLabel = document.getElementById("theme-label");
 const themeSwatch = document.getElementById("theme-swatch");
 const addSectionBtn = document.getElementById("add-section");
+const sectionExpandAllBtn = document.getElementById("section-expand-all");
+const sectionCollapseAllBtn = document.getElementById("section-collapse-all");
 const sectionNav = document.getElementById("section-nav");
 const sectionNavList = document.getElementById("section-nav-list");
 const sectionNavToggle = document.getElementById("section-nav-toggle");
@@ -232,10 +234,10 @@ const GRID_PAD_X = 4;
 const GRID_WIDTH_SAFETY = 16;
 const GRID_ROW_HEIGHT = 148;
 const gridObservers = new WeakMap();
-let navObserver = null;
 let activeNavSection = "";
 let navScrollTarget = "";
 let navScrollTimer = 0;
+let navSpyRaf = 0;
 let gridCols = GRID_COLS_MIN;
 let drawerOpen = false;
 const SIDEBAR_EXPANDED_WIDTH = 220;
@@ -420,12 +422,14 @@ function beginNavScroll(name) {
   navScrollTarget = name;
   window.clearTimeout(navScrollTimer);
   setActiveNavSection(name);
+  navScrollTimer = window.setTimeout(endNavScroll, 1200);
 }
 
 function endNavScroll() {
   if (!navScrollTarget) return;
   navScrollTarget = "";
   window.clearTimeout(navScrollTimer);
+  syncActiveNavFromScroll();
 }
 
 function scrollToSection(name) {
@@ -434,7 +438,6 @@ function scrollToSection(name) {
   beginNavScroll(name);
   if (isCollapsed(name)) toggleCollapsed(name);
   wrap.scrollIntoView({ behavior: "smooth", block: "start" });
-  navScrollTimer = window.setTimeout(endNavScroll, 1400);
 }
 
 function setActiveNavSection(name) {
@@ -442,8 +445,46 @@ function setActiveNavSection(name) {
   activeNavSection = name;
   for (const item of sectionNavList.querySelectorAll(".nav-item")) {
     const current = item.dataset.sectionName === name;
-    item.setAttribute("aria-current", current ? "true" : "false");
+    if (current) item.setAttribute("aria-current", "true");
+    else item.removeAttribute("aria-current");
   }
+}
+
+function navSpyMarker() {
+  return 80;
+}
+
+function sectionAtMarker() {
+  const sections = [...board.querySelectorAll(".section")];
+  if (!sections.length) return "";
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  if (maxScroll > 0 && window.scrollY >= maxScroll - 8) {
+    return sections[sections.length - 1].dataset.sectionName || "";
+  }
+  if (window.scrollY <= 8) {
+    return sections[0].dataset.sectionName || "";
+  }
+  const marker = navSpyMarker();
+  let current = sections[0];
+  for (const section of sections) {
+    if (section.getBoundingClientRect().top <= marker) current = section;
+    else break;
+  }
+  return current.dataset.sectionName || "";
+}
+
+function syncActiveNavFromScroll() {
+  if (navScrollTarget) return;
+  const name = sectionAtMarker();
+  if (name) setActiveNavSection(name);
+}
+
+function scheduleNavSpy() {
+  if (navSpyRaf) return;
+  navSpyRaf = requestAnimationFrame(() => {
+    navSpyRaf = 0;
+    syncActiveNavFromScroll();
+  });
 }
 
 function renderNav(query) {
@@ -469,7 +510,7 @@ function renderNav(query) {
     count.textContent = String(items.length);
     btn.append(abbr, label, count);
     btn.title = section.name;
-    btn.setAttribute("aria-current", section.name === activeNavSection ? "true" : "false");
+    if (section.name === activeNavSection) btn.setAttribute("aria-current", "true");
     btn.addEventListener("click", () => {
       scrollToSection(section.name);
       if (isCompactLayout()) setSidebarDrawer(false);
@@ -484,33 +525,18 @@ function renderNav(query) {
 }
 
 function setupNavObserver() {
-  if (navObserver) navObserver.disconnect();
-  const sections = [...board.querySelectorAll(".section")];
-  if (!sections.length) return;
-  navObserver = new IntersectionObserver(
-    (entries) => {
-      if (navScrollTarget) {
-        const target = entries.find(
-          (entry) =>
-            entry.isIntersecting &&
-            entry.target.dataset.sectionName === navScrollTarget &&
-            entry.intersectionRatio >= 0.35,
-        );
-        if (target) endNavScroll();
-        return;
-      }
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-      const top = visible[0]?.target;
-      if (top?.dataset.sectionName) setActiveNavSection(top.dataset.sectionName);
-    },
-    { rootMargin: "-12% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-  );
-  for (const section of sections) navObserver.observe(section);
+  syncActiveNavFromScroll();
 }
 
+window.addEventListener("scroll", scheduleNavSpy, { passive: true });
+window.addEventListener("resize", scheduleNavSpy);
 window.addEventListener("scrollend", endNavScroll, { passive: true });
+window.addEventListener("wheel", () => {
+  if (navScrollTarget) endNavScroll();
+}, { passive: true });
+window.addEventListener("touchstart", () => {
+  if (navScrollTarget) endNavScroll();
+}, { passive: true });
 widthToggle?.addEventListener("click", () => {
   if (widthPanelOpen()) closeWidthPanel();
   else openWidthPanel();
@@ -554,6 +580,33 @@ function isCollapsed(name) {
   return loadCollapsed().includes(name);
 }
 
+function applySectionCollapsed(wrap, collapsed) {
+  wrap.classList.toggle("collapsed", collapsed);
+  const body = wrap.querySelector(".section-body");
+  if (body) {
+    body.toggleAttribute("inert", collapsed);
+    body.setAttribute("aria-hidden", collapsed ? "true" : "false");
+  }
+  const toggle = wrap.querySelector(".section-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    toggle.title = collapsed ? "Expand section" : "Collapse section";
+  }
+}
+
+function setAllSectionsCollapsed(collapsed) {
+  if (searching()) return;
+  const names = (data.sections || []).map((section) => section.name);
+  saveCollapsed(collapsed ? names : []);
+  const sections = [...board.querySelectorAll(".section")];
+  if (!sections.length) {
+    render();
+    return;
+  }
+  for (const wrap of sections) applySectionCollapsed(wrap, collapsed);
+  scheduleNavSpy();
+}
+
 function toggleCollapsed(name) {
   if (searching()) return;
   const set = new Set(loadCollapsed());
@@ -570,17 +623,8 @@ function toggleCollapsed(name) {
     render();
     return;
   }
-  wrap.classList.toggle("collapsed", willCollapse);
-  const body = wrap.querySelector(".section-body");
-  if (body) {
-    body.toggleAttribute("inert", willCollapse);
-    body.setAttribute("aria-hidden", willCollapse ? "true" : "false");
-  }
-  const toggle = wrap.querySelector(".section-toggle");
-  if (toggle) {
-    toggle.setAttribute("aria-expanded", willCollapse ? "false" : "true");
-    toggle.title = willCollapse ? "Expand section" : "Collapse section";
-  }
+  applySectionCollapsed(wrap, willCollapse);
+  scheduleNavSpy();
 }
 
 function itemHasPosition(item) {
@@ -1434,6 +1478,8 @@ function closeDeleteSection() {
 }
 
 addSectionBtn.addEventListener("click", openAddSection);
+sectionExpandAllBtn?.addEventListener("click", () => setAllSectionsCollapsed(false));
+sectionCollapseAllBtn?.addEventListener("click", () => setAllSectionsCollapsed(true));
 sectionCancel.addEventListener("click", closeAddSection);
 sectionEditor.addEventListener("cancel", closeAddSection);
 sectionForm.addEventListener("submit", async (event) => {

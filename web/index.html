@@ -17,7 +17,7 @@
       document.documentElement.setAttribute("data-scheme", dark[id] ? "dark" : "light");
     })();
   </script>
-  <link rel="stylesheet" href="/app.css?v=26">
+  <link rel="stylesheet" href="/app.css?v=31">
   <link rel="icon" href="/icons/__fallback" type="image/svg+xml">
 </head>
 <body>
@@ -35,9 +35,12 @@
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16.2 16.2 21 21"/></svg>
         <input id="q" type="search" placeholder="Search services…" autocomplete="off">
       </label>
-      <button type="button" id="add-section" class="ghost" title="Add section">Add section</button>
+      <button type="button" id="add-section" class="tool-icon" title="Add section">
+        <span class="sr-only">Add section</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
       <div class="width-picker" id="width-picker">
-        <button type="button" id="width-toggle" class="width-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="width-panel" title="Cards per row">
+        <button type="button" id="width-toggle" class="tool-icon" aria-haspopup="dialog" aria-expanded="false" aria-controls="width-panel" title="Cards per row">
           <span class="sr-only">Cards per row</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
         </button>
@@ -56,6 +59,14 @@
     <aside class="section-nav" id="section-nav" hidden>
       <div class="section-nav-head">
         <h2 class="section-nav-title">Sections</h2>
+        <div class="section-nav-bulk">
+          <button type="button" id="section-expand-all" class="section-nav-mini" title="Expand all sections" aria-label="Expand all sections">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+          </button>
+          <button type="button" id="section-collapse-all" class="section-nav-mini" title="Collapse all sections" aria-label="Collapse all sections">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 11l-5-5-5 5M17 18l-5-5-5 5"/></svg>
+          </button>
+        </div>
         <button type="button" id="section-nav-toggle" class="section-nav-toggle" aria-controls="section-nav-list" aria-expanded="true" title="Collapse sidebar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>
         </button>
@@ -152,6 +163,6 @@
       </div>
     </form>
   </dialog>
-  <script src="/app.js?v=28"></script>
+  <script src="/app.js?v=32"></script>
 </body>
 </html>
