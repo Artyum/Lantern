@@ -750,36 +750,16 @@ function occupantAt(posMap, col, row, skipUrl = "") {
   return "";
 }
 
-function findNextFreeIndex(startIdx, posMap, cols, skipUrl) {
-  let idx = startIdx;
-  while (true) {
-    const cell = indexToCell(idx, cols);
-    if (!occupantAt(posMap, cell.col, cell.row, skipUrl)) return idx;
-    idx += 1;
-  }
-}
-
-function placeWithPush(sectionName, draggedUrl, col, row) {
-  const section = (data.sections || []).find((entry) => entry.name === sectionName);
-  const grid = sectionElement(sectionName)?.querySelector(".grid");
-  if (!section || !grid) return;
+function sectionDisplayMap(section, grid) {
   const { cols } = gridMetrics(grid);
   const canonical = resolvePositions(section.items || [], gridCols);
-  const posMap = new Map(
-    canonical.map((item) => [item.url, toDisplayPosition(item, cols)]),
-  );
+  return {
+    cols,
+    posMap: new Map(canonical.map((item) => [item.url, toDisplayPosition(item, cols)])),
+  };
+}
 
-  function place(url, targetCol, targetRow) {
-    const blocked = occupantAt(posMap, targetCol, targetRow, url);
-    if (blocked) {
-      const nextIdx = findNextFreeIndex(cellIndex(targetCol, targetRow, cols) + 1, posMap, cols, blocked);
-      const next = indexToCell(nextIdx, cols);
-      place(blocked, next.col, next.row);
-    }
-    posMap.set(url, { col: targetCol, row: targetRow });
-  }
-
-  place(draggedUrl, col, row);
+function writePositions(section, grid, posMap, cols) {
   for (const item of section.items || []) {
     const pos = posMap.get(item.url);
     if (!pos) continue;
@@ -787,7 +767,81 @@ function placeWithPush(sectionName, draggedUrl, col, row) {
     item.col = canon.col;
     item.row = canon.row;
   }
-  syncTilePositions(grid, sectionName, section.items || []);
+  syncTilePositions(grid, section.name, section.items || []);
+}
+
+function repackSection(sectionName) {
+  const section = (data.sections || []).find((entry) => entry.name === sectionName);
+  const grid = sectionElement(sectionName)?.querySelector(".grid");
+  if (!section || !grid) return;
+  section.items = resolvePositions(section.items || [], gridCols);
+  syncTilePositions(grid, sectionName, section.items);
+  applyGridSizing(grid, section.items);
+}
+
+function moveItemBetweenSections(
+  sourceSectionName,
+  targetSectionName,
+  url,
+  col,
+  row,
+  tileEl,
+  targetGrid,
+) {
+  const sourceSection = (data.sections || []).find((entry) => entry.name === sourceSectionName);
+  const targetSection = (data.sections || []).find((entry) => entry.name === targetSectionName);
+  if (!sourceSection || !targetSection) return;
+
+  const sourceGrid = sectionElement(sourceSectionName)?.querySelector(".grid");
+  const itemIndex = (sourceSection.items || []).findIndex((item) => item.url === url);
+  if (itemIndex === -1) return;
+
+  const sourceOrigin = sourceGrid
+    ? sectionDisplayMap(sourceSection, sourceGrid).posMap.get(url)
+    : null;
+  const targetMap = sectionDisplayMap(targetSection, targetGrid);
+  const occupantUrl = occupantAt(targetMap.posMap, col, row, url);
+
+  const [item] = sourceSection.items.splice(itemIndex, 1);
+  targetSection.items = targetSection.items || [];
+  targetSection.items.push(item);
+
+  tileEl.dataset.section = targetSectionName;
+  targetGrid.append(tileEl);
+
+  if (occupantUrl && sourceOrigin && sourceGrid) {
+    const occupantIndex = targetSection.items.findIndex((entry) => entry.url === occupantUrl);
+    if (occupantIndex !== -1) {
+      const [occupant] = targetSection.items.splice(occupantIndex, 1);
+      sourceSection.items.push(occupant);
+      const occupantTile = targetGrid.querySelector(`.tile[data-url="${CSS.escape(occupantUrl)}"]`);
+      if (occupantTile) {
+        occupantTile.dataset.section = sourceSectionName;
+        sourceGrid.append(occupantTile);
+      }
+      placeWithSwap(sourceSectionName, occupantUrl, sourceOrigin.col, sourceOrigin.row);
+    }
+  }
+
+  placeWithSwap(targetSectionName, url, col, row);
+  if (!occupantUrl) repackSection(sourceSectionName);
+
+  const sourceCount = sectionElement(sourceSectionName)?.querySelector(".section-count");
+  const targetCount = sectionElement(targetSectionName)?.querySelector(".section-count");
+  if (sourceCount) sourceCount.textContent = String(sourceSection.items.length);
+  if (targetCount) targetCount.textContent = String(targetSection.items.length);
+}
+
+function placeWithSwap(sectionName, draggedUrl, col, row) {
+  const section = (data.sections || []).find((entry) => entry.name === sectionName);
+  const grid = sectionElement(sectionName)?.querySelector(".grid");
+  if (!section || !grid) return;
+  const { cols, posMap } = sectionDisplayMap(section, grid);
+  const origin = posMap.get(draggedUrl);
+  const occupant = occupantAt(posMap, col, row, draggedUrl);
+  if (occupant && origin) posMap.set(occupant, { col: origin.col, row: origin.row });
+  posMap.set(draggedUrl, { col, row });
+  writePositions(section, grid, posMap, cols);
 }
 
 function layoutPayload(sections) {
@@ -837,7 +891,7 @@ function tile(item, sectionName) {
   wrap.dataset.section = sectionName;
   const handle = document.createElement("span");
   handle.className = "tile-drag";
-  handle.title = "Drag to any grid cell";
+  handle.title = "Drag to any section";
   handle.setAttribute("role", "img");
   handle.setAttribute("aria-label", "Drag tile");
   handle.draggable = !searching();
@@ -930,12 +984,17 @@ function ensureDropPlaceholder(grid) {
 }
 
 function showDropPlaceholder(grid, col, row) {
+  if (dropPlaceholder?.parentElement && dropPlaceholder.parentElement !== grid) {
+    dropPlaceholder.hidden = true;
+    dropPlaceholder.remove();
+    dropPlaceholder = null;
+  }
   const { cols } = gridMetrics(grid);
   const targetCol = clampGridCol(col, cols);
   const targetRow = Math.max(1, row);
   const items = sectionItemsForGrid(grid);
   setGridRowCount(grid, Math.max(gridMaxRow(items, cols), targetRow + 1));
-  grid.classList.add("is-dropping");
+  if (!grid.classList.contains("is-dropping")) beginGridDrop(grid);
   const placeholder = ensureDropPlaceholder(grid);
   placeholder.style.gridColumn = String(targetCol);
   placeholder.style.gridRow = String(targetRow);
@@ -957,13 +1016,35 @@ function cellFromPointer(event, grid) {
 
 async function onDragEnd() {
   const tile = dragTile;
-  const target = dropCommitCell
-    ?? (dropHoverCell?.grid === tile?.parentElement ? dropHoverCell : null);
+  const commit = dropCommitCell ?? dropHoverCell;
+  const target = commit?.grid
+    ? commit
+    : commit && dropHoverCell?.grid
+      ? { ...commit, grid: dropHoverCell.grid }
+      : null;
   if (tile) tile.classList.remove("dragging");
   endGridDrop();
-  if (didDrag && tile && target) {
-    placeWithPush(tile.dataset.section, tile.dataset.url, target.col, target.row);
-    await syncFromDOM();
+  if (didDrag && tile && target?.grid) {
+    const url = tile.dataset.url;
+    const sourceSectionName = tile.dataset.section;
+    const targetSectionName = target.grid.closest(".section")?.dataset.sectionName;
+    if (sourceSectionName && targetSectionName) {
+      if (sourceSectionName === targetSectionName) {
+        placeWithSwap(sourceSectionName, url, target.col, target.row);
+      } else {
+        moveItemBetweenSections(
+          sourceSectionName,
+          targetSectionName,
+          url,
+          target.col,
+          target.row,
+          tile,
+          target.grid,
+        );
+        renderNav((q.value || "").trim().toLowerCase());
+      }
+      await syncFromDOM();
+    }
   }
   dragTile = null;
 }
@@ -971,7 +1052,7 @@ async function onDragEnd() {
 function onGridDragOver(event) {
   if (!dragTile) return;
   const grid = event.target.closest(".grid");
-  if (!grid || grid !== dragTile.parentElement) return;
+  if (!grid) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = "move";
   didDrag = true;
@@ -990,7 +1071,8 @@ function onGridDragLeave(event) {
 function onGridDrop(event) {
   event.preventDefault();
   didDrag = true;
-  dropCommitCell = cellFromPointer(event, event.currentTarget);
+  const grid = event.currentTarget;
+  dropCommitCell = { ...cellFromPointer(event, grid), grid };
 }
 
 function itemByUrl(url) {
