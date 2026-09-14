@@ -1,0 +1,18 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -buildvcs=false -o ./tmp/lantern ./cmd/lantern"
+  bin = "./tmp/lantern"
+  include_ext = ["go", "html", "css", "js"]
+  exclude_dir = ["tmp", "data", "report", "deploy"]
+  exclude_regex = ["_test.go"]
+  delay = 500
+  send_interrupt = true
+  stop_on_error = true
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

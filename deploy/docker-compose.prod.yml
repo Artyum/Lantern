@@ -1,0 +1,24 @@
+networks:
+  traefik-net:
+    external: true
+    name: traefik-net
+
+services:
+  lantern:
+    image: ${LANTERN_IMAGE:-ghcr.io/artyum/lantern:latest}
+    container_name: lantern
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Warsaw}
+      CONFIG_PATH: /config/config.json
+      CACHE_DIR: /data/cache
+      LISTEN: ":8080"
+    volumes:
+      - ./config.json:/config/config.json
+      - ./mount/data:/data
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lantern.rule=Host(`${LANTERN_HOST:-lantern.example.com}`)"
+      - "traefik.http.services.lantern.loadbalancer.server.port=8080"

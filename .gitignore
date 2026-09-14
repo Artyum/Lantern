@@ -1,0 +1,29 @@
+# Config
+config.json
+deploy/config.json
+
+# Environment
+.env
+.env.*
+!.env.*.example
+
+# Runtime
+tmp/
+report/
+data/
+
+# Docker volumes
+mount/data/
+mount/go-mod/
+deploy/mount/
+
+# Go
+*.exe
+*.test
+*.out
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

@@ -1,0 +1,45 @@
+{
+  "title": "Lantern",
+  "sections": [
+    {
+      "name": "Media",
+      "items": [
+        {
+          "name": "Jellyfin",
+          "url": "https://jellyfin.example.com",
+          "icon": "jellyfin"
+        },
+        {
+          "name": "Immich",
+          "url": "https://photos.example.com",
+          "icon": "immich"
+        }
+      ]
+    },
+    {
+      "name": "Infrastructure",
+      "items": [
+        {
+          "name": "Traefik",
+          "url": "https://traefik.example.com",
+          "icon": "traefikproxy"
+        },
+        {
+          "name": "Pi-hole",
+          "url": "https://pihole.example.com/admin",
+          "icon": "pihole"
+        },
+        {
+          "name": "Portainer",
+          "url": "https://portainer.example.com",
+          "icon": "portainer"
+        },
+        {
+          "name": "Uptime Kuma",
+          "url": "https://status.example.com",
+          "icon": "uptimekuma"
+        }
+      ]
+    }
+  ]
+}
