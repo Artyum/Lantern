@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -41,7 +42,89 @@ jobs:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      KEEP: "2"
     steps:
+      - name: Keep ${{ env.KEEP }} newest GHCR images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          PACKAGE: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          package="$(echo "$PACKAGE" | tr '[:upper:]' '[:lower:]')"
+          if [ "$OWNER_TYPE" = "Organization" ]; then
+            api="orgs/${OWNER}"
+          else
+            api="users/${OWNER}"
+          fi
+
+          ids="$(gh api --paginate "/${api}/packages/container/${package}/versions" \
+            --jq "sort_by(.created_at) | reverse | .[${KEEP}:] | .[].id" || true)"
+
+          if [ -z "${ids}" ]; then
+            echo "No GHCR versions to delete (keeping up to ${KEEP})."
+            exit 0
+          fi
+
+          deleted=0
+          while IFS= read -r id; do
+            [ -z "${id}" ] && continue
+            echo "Deleting GHCR version ${id}"
+            gh api -X DELETE "/${api}/packages/container/${package}/versions/${id}"
+            deleted=$((deleted + 1))
+          done <<< "${ids}"
+          echo "Deleted ${deleted} GHCR version(s)."
+
+      - name: Keep ${{ env.KEEP }} newest CI runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW: ${{ github.workflow }}
+          CURRENT_RUN: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ids="$(gh run list --workflow "${WORKFLOW}" --json databaseId,status \
+            --jq "[.[] | select(.status == \"completed\" and .databaseId != ${CURRENT_RUN}) | .databaseId] | .[${KEEP}:][]" \
+            --limit 100 || true)"
+
+          if [ -z "${ids}" ]; then
+            echo "No workflow runs to delete (keeping up to ${KEEP})."
+            exit 0
+          fi
+
+          deleted=0
+          while IFS= read -r id; do
+            [ -z "${id}" ] && continue
+            echo "Deleting run ${id}"
+            gh run delete "${id}"
+            deleted=$((deleted + 1))
+          done <<< "${ids}"
+          echo "Deleted ${deleted} workflow run(s)."
+
+      - name: Keep ${{ env.KEEP }} newest Actions caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ids="$(gh api --paginate "/repos/${REPO}/actions/caches" --jq '.actions_caches[]' \
+            | jq -s "sort_by(.created_at) | reverse | .[${KEEP}:] | .[].id" || true)"
+
+          if [ -z "${ids}" ]; then
+            echo "No Actions caches to delete (keeping up to ${KEEP})."
+            exit 0
+          fi
+
+          deleted=0
+          while IFS= read -r id; do
+            [ -z "${id}" ] && continue
+            echo "Deleting cache ${id}"
+            gh cache delete "${id}" --repo "${REPO}"
+            deleted=$((deleted + 1))
+          done <<< "${ids}"
+          echo "Deleted ${deleted} cache(s)."
+
       - uses: actions/checkout@v6
 
       - name: Set up Docker Buildx

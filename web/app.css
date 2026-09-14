@@ -10,8 +10,7 @@
   --surface-highlight: color-mix(in oklab, var(--color-surface) 40%, transparent);
   --surface-highlight-soft: color-mix(in oklab, var(--color-surface) 30%, transparent);
   --shadow-card:
-    0 1px 2px color-mix(in oklab, var(--color-ink) 6%, transparent),
-    0 6px 14px -10px color-mix(in oklab, var(--color-ink) 14%, transparent);
+    0 1px 2px color-mix(in oklab, var(--color-ink) 6%, transparent);
   --shadow-float:
     0 1px 0 color-mix(in oklab, var(--color-surface) 35%, transparent) inset, 0 4px 14px color-mix(in oklab, var(--color-ink) 7%, transparent),
     0 12px 28px -14px color-mix(in oklab, var(--color-ink) 10%, transparent);
@@ -94,8 +93,8 @@ html[data-scheme="dark"] {
   --surface-highlight: color-mix(in oklab, white 22%, transparent);
   --surface-highlight-soft: color-mix(in oklab, white 13%, transparent);
   --shadow-card:
-    0 1px 0 color-mix(in oklab, white 12%, transparent) inset, 0 2px 8px color-mix(in oklab, black 20%, transparent), 0 10px 24px -8px color-mix(in oklab, black 32%, transparent),
-    0 20px 40px -18px color-mix(in oklab, black 40%, transparent);
+    0 1px 0 color-mix(in oklab, white 12%, transparent) inset,
+    0 4px 12px -6px color-mix(in oklab, black 34%, transparent);
   --shadow-float:
     0 1px 0 color-mix(in oklab, white 14%, transparent) inset, 0 6px 18px -12px color-mix(in oklab, black 28%, transparent), 0 14px 32px -18px color-mix(in oklab, black 40%, transparent);
   --shadow-coachmark: 0 2px 6px rgb(0 0 0 / 0.35), 0 8px 18px rgb(0 0 0 / 0.42), 0 16px 32px -4px rgb(0 0 0 / 0.5);
@@ -1349,7 +1348,7 @@ h1 {
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 1.02rem;
   text-align: left;
   cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease;
@@ -1640,7 +1639,7 @@ h1 {
   grid-template-columns: repeat(var(--grid-cols, 4), minmax(0, 1fr));
   gap: 14px;
   min-height: 56px;
-  padding: 2px;
+  padding: 4px 4px 22px;
   border-radius: 22px;
   transition: background 0.16s ease, box-shadow 0.16s ease;
 }
@@ -1655,7 +1654,7 @@ h1 {
 .grid.is-dropping {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
-  padding-bottom: 6px;
+  padding-bottom: 26px;
 }
 .grid-drop-placeholder {
   min-height: 148px;
@@ -1689,7 +1688,9 @@ h1 {
 }
 .tile:hover {
   border-color: color-mix(in oklab, var(--color-pulse) 62%, var(--color-frame));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-pulse) 34%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--color-pulse) 34%, transparent),
+    var(--shadow-card);
 }
 .tile.dragging {
   opacity: 0.35;
