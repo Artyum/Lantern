@@ -124,27 +124,29 @@ jobs:
           CURRENT_RUN: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          workflows="$(gh api --paginate "/repos/${REPO}/actions/workflows" --jq '.workflows[].path')"
+          workflows="$(gh api --paginate "/repos/${REPO}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | [.id, .path] | @tsv')"
           if [ -z "${workflows}" ]; then
             echo "No workflows found."
             exit 0
           fi
 
           deleted=0
-          while IFS= read -r path; do
-            [ -z "${path}" ] && continue
+          while IFS=$'\t' read -r workflow_id path; do
+            [ -z "${workflow_id}" ] && continue
             name="$(basename "${path}")"
             echo "Cleaning runs for ${name}"
-            # Newest first. Current in-progress run is kept so ${KEEP} remain after it finishes.
-            ids="$(gh run list --workflow "${name}" --json databaseId \
-              --jq ".[${KEEP}:][].databaseId" --limit 100 || true)"
+            # API returns newest runs first. Keep the newest ${KEEP}.
+            ids="$(gh api --paginate \
+              "/repos/${REPO}/actions/workflows/${workflow_id}/runs?per_page=100" \
+              --jq ".workflow_runs | .[${KEEP}:] | .[].id" || true)"
             while IFS= read -r id; do
               [ -z "${id}" ] && continue
               if [ "${id}" = "${CURRENT_RUN}" ]; then
                 continue
               fi
               echo "Deleting run ${id} (${name})"
-              gh run delete "${id}"
+              gh api -X DELETE "/repos/${REPO}/actions/runs/${id}"
               deleted=$((deleted + 1))
             done <<< "${ids}"
           done <<< "${workflows}"

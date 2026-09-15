@@ -1202,8 +1202,39 @@ function moveButton(label, icon, disabled, onClick, extraClass) {
   return btn;
 }
 
+let savedScroll = null;
+
+function saveScroll() {
+  savedScroll = { x: window.scrollX, y: window.scrollY };
+}
+
+function restoreScroll() {
+  if (!savedScroll) return;
+  window.scrollTo(savedScroll.x, savedScroll.y);
+  savedScroll = null;
+}
+
+function showDialog(dialog, focusEl) {
+  saveScroll();
+  dialog.showModal();
+  focusEl?.focus({ preventScroll: true });
+}
+
+function closeDialog(dialog) {
+  if (!dialog?.open) return;
+  dialog.close();
+  restoreScroll();
+}
+
+for (const dialog of document.querySelectorAll("dialog")) {
+  dialog.addEventListener("close", () => {
+    restoreScroll();
+  });
+}
+
 function render() {
   const query = (q.value || "").trim().toLowerCase();
+  const scroll = savedScroll || { x: window.scrollX, y: window.scrollY };
   board.classList.remove("ready");
   dropPlaceholder = null;
   dropHoverCell = null;
@@ -1297,11 +1328,11 @@ function render() {
     empty.textContent = "No matching services.";
   }
   renderNav(query);
+  window.scrollTo(scroll.x, scroll.y);
+  savedScroll = null;
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      board.classList.add("ready");
-      setupNavObserver();
-    });
+    board.classList.add("ready");
+    setupNavObserver();
   });
 }
 
@@ -1338,8 +1369,7 @@ function fillEditor(sectionName, item) {
   setIcon(itemIconPreview, item?.icon);
   showItemError("");
   itemSave.disabled = false;
-  editor.showModal();
-  itemName.focus();
+  showDialog(editor, itemName);
 }
 
 function openEditor(item, sectionName) {
@@ -1357,7 +1387,7 @@ function closeEditor() {
   editing = null;
   itemForm.reset();
   showItemError("");
-  if (editor.open) editor.close();
+  closeDialog(editor);
 }
 
 itemCancel.addEventListener("click", () => closeEditor());
@@ -1420,13 +1450,13 @@ function openDeleteItem() {
   itemConfirmText.textContent = `Delete tile "${deletingItem.name}"? This cannot be undone.`;
   showSectionError(itemConfirmError, "");
   itemConfirmOk.disabled = false;
-  itemConfirm.showModal();
+  showDialog(itemConfirm);
 }
 
 function closeDeleteItem() {
   deletingItem = null;
   showSectionError(itemConfirmError, "");
-  if (itemConfirm.open) itemConfirm.close();
+  closeDialog(itemConfirm);
 }
 
 itemDelete.addEventListener("click", openDeleteItem);
@@ -1467,14 +1497,13 @@ function openAddSection() {
   sectionNameInput.value = "";
   showSectionError(sectionError, "");
   sectionSave.disabled = false;
-  sectionEditor.showModal();
-  sectionNameInput.focus();
+  showDialog(sectionEditor, sectionNameInput);
 }
 
 function closeAddSection() {
   sectionForm.reset();
   showSectionError(sectionError, "");
-  if (sectionEditor.open) sectionEditor.close();
+  closeDialog(sectionEditor);
 }
 
 function tileCountLabel(count) {
@@ -1490,13 +1519,13 @@ function openDeleteSection(section) {
     : `Delete empty section "${section.name}"?`;
   showSectionError(sectionConfirmError, "");
   sectionConfirmOk.disabled = false;
-  sectionConfirm.showModal();
+  showDialog(sectionConfirm);
 }
 
 function closeDeleteSection() {
   deletingSection = null;
   showSectionError(sectionConfirmError, "");
-  if (sectionConfirm.open) sectionConfirm.close();
+  closeDialog(sectionConfirm);
 }
 
 addSectionBtn.addEventListener("click", openAddSection);
