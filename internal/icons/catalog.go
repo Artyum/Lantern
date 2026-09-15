@@ -10,6 +10,38 @@ const (
 	simpleIconsCatalogURL = "https://cdn.jsdelivr.net/npm/simple-icons/data/simple-icons.json"
 )
 
+// dashSlug is Dashboard Icons' filename convention: lowercase kebab-case.
+func dashSlug(name string) string {
+	s := strings.ToLower(strings.TrimSpace(name))
+	var b strings.Builder
+	prevDash := false
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
+			b.WriteRune(r)
+			prevDash = false
+		default:
+			if !prevDash && b.Len() > 0 {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+func dashboardSlugs(name string) []string {
+	dash := dashSlug(name)
+	if dash == "" {
+		return nil
+	}
+	out := []string{dash}
+	if compact := strings.ReplaceAll(dash, "-", ""); compact != dash && compact != "" {
+		out = append(out, compact)
+	}
+	return out
+}
+
 // simpleSlug is Simple Icons' titleToSlug: lowercase, a few substitutions,
 // then ASCII letters and digits only. That is the CDN filename convention.
 func simpleSlug(name string) string {

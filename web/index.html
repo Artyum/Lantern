@@ -17,7 +17,7 @@
       document.documentElement.setAttribute("data-scheme", dark[id] ? "dark" : "light");
     })();
   </script>
-  <link rel="stylesheet" href="/app.css?v=36">
+  <link rel="stylesheet" href="/app.css?v=39">
   <link rel="icon" href="/icons/__fallback" type="image/svg+xml">
 </head>
 <body>
@@ -95,72 +95,89 @@
   <div id="section-nav-backdrop" class="section-nav-backdrop" hidden></div>
   <dialog id="item-editor" class="item-editor">
     <form id="item-form">
-      <h2 id="item-title">Edit tile</h2>
-      <label>
-        Name
-        <input id="item-name" name="name" type="text" required maxlength="80" autocomplete="off">
-      </label>
-      <label>
-        URL
-        <input id="item-url" name="url" type="url" required maxlength="500" autocomplete="off">
-      </label>
-      <div class="icon-row">
-        <img id="item-icon-preview" alt="" width="48" height="48">
-        <div class="icon-fields">
-          <label>
-            Icon (Simple Icons slug, URL, or leave empty)
-            <input id="item-icon" name="icon" type="text" maxlength="300" autocomplete="off" placeholder="e.g. jellyfin">
-          </label>
-          <label class="file-label">
-            Custom icon
-            <input id="item-icon-file" name="iconFile" type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp,image/gif,image/x-icon,.ico">
-          </label>
+      <header class="modal-head">
+        <h2 id="item-title">Edit tile</h2>
+      </header>
+      <div class="modal-body">
+        <div class="icon-card">
+          <div class="icon-preview">
+            <img id="item-icon-preview" alt="" width="144" height="144">
+          </div>
+          <div class="icon-tools">
+            <button type="button" id="item-icon-refresh" class="ghost icon-tool" title="Reload icon" aria-label="Reload icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            </button>
+            <button type="button" id="item-icon-upload" class="ghost icon-tool" title="Upload icon" aria-label="Upload icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V7"/><path d="M8.5 10.5 12 7l3.5 3.5"/><path d="M5 18h14"/></svg>
+            </button>
+            <input id="item-icon-file" class="sr-only" name="iconFile" type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp,image/gif,image/x-icon,.ico">
+          </div>
         </div>
+        <label>
+          Name
+          <input id="item-name" name="name" type="text" required maxlength="80" autocomplete="off">
+        </label>
+        <label>
+          URL
+          <input id="item-url" name="url" type="url" required maxlength="500" autocomplete="off">
+        </label>
+        <p id="item-error" class="form-error" hidden></p>
       </div>
-      <p id="item-error" class="form-error" hidden></p>
-      <div class="form-actions">
+      <footer class="modal-foot">
         <button type="button" id="item-delete" class="danger" hidden>Delete</button>
         <button type="button" id="item-cancel" class="ghost">Cancel</button>
         <button type="submit" id="item-save" class="primary">Save</button>
-      </div>
+      </footer>
     </form>
   </dialog>
   <dialog id="section-editor" class="item-editor">
     <form id="section-form">
-      <h2>New section</h2>
-      <label>
-        Name
-        <input id="section-name" name="name" type="text" required maxlength="80" autocomplete="off" placeholder="e.g. Tools">
-      </label>
-      <p id="section-error" class="form-error" hidden></p>
-      <div class="form-actions">
+      <header class="modal-head">
+        <h2>New section</h2>
+      </header>
+      <div class="modal-body">
+        <label>
+          Name
+          <input id="section-name" name="name" type="text" required maxlength="80" autocomplete="off" placeholder="e.g. Tools">
+        </label>
+        <p id="section-error" class="form-error" hidden></p>
+      </div>
+      <footer class="modal-foot">
         <button type="button" id="section-cancel" class="ghost">Cancel</button>
         <button type="submit" id="section-save" class="primary">Add</button>
-      </div>
+      </footer>
     </form>
   </dialog>
   <dialog id="section-confirm" class="item-editor">
     <form id="section-confirm-form">
-      <h2>Delete section?</h2>
-      <p id="section-confirm-text" class="confirm-copy"></p>
-      <p id="section-confirm-error" class="form-error" hidden></p>
-      <div class="form-actions">
+      <header class="modal-head">
+        <h2>Delete section?</h2>
+      </header>
+      <div class="modal-body">
+        <p id="section-confirm-text" class="confirm-copy"></p>
+        <p id="section-confirm-error" class="form-error" hidden></p>
+      </div>
+      <footer class="modal-foot">
         <button type="button" id="section-confirm-cancel" class="ghost">Cancel</button>
         <button type="submit" id="section-confirm-ok" class="danger">Delete</button>
-      </div>
+      </footer>
     </form>
   </dialog>
   <dialog id="item-confirm" class="item-editor">
     <form id="item-confirm-form">
-      <h2>Delete tile?</h2>
-      <p id="item-confirm-text" class="confirm-copy"></p>
-      <p id="item-confirm-error" class="form-error" hidden></p>
-      <div class="form-actions">
+      <header class="modal-head">
+        <h2>Delete tile?</h2>
+      </header>
+      <div class="modal-body">
+        <p id="item-confirm-text" class="confirm-copy"></p>
+        <p id="item-confirm-error" class="form-error" hidden></p>
+      </div>
+      <footer class="modal-foot">
         <button type="button" id="item-confirm-cancel" class="ghost">Cancel</button>
         <button type="submit" id="item-confirm-ok" class="danger">Delete</button>
-      </div>
+      </footer>
     </form>
   </dialog>
-  <script src="/app.js?v=39"></script>
+  <script src="/app.js?v=41"></script>
 </body>
 </html>

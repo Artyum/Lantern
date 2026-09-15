@@ -1734,6 +1734,43 @@ h1 {
   background: transparent;
   border: 0;
   box-shadow: none;
+  position: relative;
+}
+.tile-icon.loading img,
+.icon-preview.loading img {
+  opacity: 0;
+}
+.tile-icon.loading::after,
+.icon-preview.loading::after,
+.primary.busy::after,
+.ghost.busy::after {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border: 2px solid color-mix(in oklab, var(--muted) 55%, transparent);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: icon-spin 0.7s linear infinite;
+}
+.primary.busy {
+  position: relative;
+  color: transparent;
+}
+.ghost.busy {
+  position: relative;
+  color: transparent;
+}
+.primary.busy::after,
+.ghost.busy::after {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+.primary.busy::after {
+  border-top-color: var(--color-on-pulse);
+}
+@keyframes icon-spin {
+  to { transform: rotate(360deg); }
 }
 .tile-icon img,
 .tile-link img {
@@ -1835,7 +1872,8 @@ h1 {
   background: var(--surface-gradient);
   color: var(--ink);
   padding: 0;
-  width: min(460px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 28px));
+  overflow: hidden;
   box-shadow: var(--shadow-float);
   backdrop-filter: blur(24px);
 }
@@ -1889,15 +1927,35 @@ h1 {
 .item-editor form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 24px;
+  gap: 0;
+  padding: 0;
+}
+.modal-head {
+  padding: 18px 22px 16px;
+  background: var(--modal-header-bg);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-frame) 70%, transparent);
 }
 .item-editor h2 {
-  margin: 0 0 2px;
-  font-size: 1.22rem;
+  margin: 0;
+  font-size: 1.18rem;
   letter-spacing: -0.04em;
+  font-weight: 650;
 }
-.item-editor label {
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+}
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  background: var(--modal-footer-bg);
+  border-top: 1px solid color-mix(in oklab, var(--color-frame) 70%, transparent);
+}
+.modal-body > label {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1922,85 +1980,52 @@ h1 {
   border-color: color-mix(in oklab, var(--color-pulse) 55%, var(--color-frame));
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-pulse) 20%, transparent);
 }
-.icon-row {
-  display: grid;
-  grid-template-columns: 52px 1fr;
-  gap: 12px;
-  align-items: start;
-}
-.icon-row img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--well);
-  padding: 6px;
-  margin-top: 22px;
-}
-.icon-fields {
+.icon-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 2px;
 }
-.file-label input[type="file"] {
-  width: 100%;
-  font: inherit;
-  font-weight: 400;
-  color: var(--muted);
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
+.icon-preview {
+  position: relative;
+  width: 144px;
+  height: 144px;
+  display: grid;
+  place-items: center;
 }
-.file-label input[type="file"]::file-selector-button,
-.file-label input[type="file"]::-webkit-file-upload-button {
-  margin-right: 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 8px 14px;
-  background: color-mix(in srgb, var(--bg-elev-solid) 72%, transparent);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 650;
+.icon-preview img {
+  width: 144px;
+  height: 144px;
+  object-fit: contain;
+  border: 1px solid var(--color-frame);
+  border-radius: 28px;
+  background: var(--color-surface-2);
+  padding: 18px;
+  box-shadow: var(--shadow-field);
+}
+.icon-tools {
+  display: flex;
+  gap: 8px;
+}
+.icon-tool {
+  position: relative;
+  width: 40px;
+  min-height: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  transition: border-color 0.15s ease, filter 0.15s ease;
 }
-.file-label input[type="file"]::file-selector-button:hover,
-.file-label input[type="file"]::-webkit-file-upload-button:hover {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  filter: brightness(1.04);
-}
-.file-label input[type="file"]::file-selector-button:active,
-.file-label input[type="file"]::-webkit-file-upload-button:active {
-  filter: brightness(0.96);
-}
-.file-label input[type="file"]:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
-}
-.file-label input[type="file"]:focus:not(:focus-visible) {
-  border-color: var(--line);
-  box-shadow: none;
-}
-.file-label input[type="file"]:focus-visible {
-  outline: none;
-  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+.icon-tool svg {
+  width: 18px;
+  height: 18px;
 }
 .form-error {
   margin: 0;
   color: var(--danger);
   font-size: 0.86rem;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
 }
 #item-delete {
   margin-right: auto;

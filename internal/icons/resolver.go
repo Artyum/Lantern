@@ -24,9 +24,12 @@ import (
 var fallbackFS embed.FS
 
 const (
-	maxBody        = 512 * 1024
-	maxRedirects   = 3
-	simpleIconsURL = "https://cdn.jsdelivr.net/npm/simple-icons/icons/%s.svg"
+	maxBody            = 512 * 1024
+	maxRedirects       = 3
+	cacheSourceVersion = "2"
+	simpleIconsURL     = "https://cdn.jsdelivr.net/npm/simple-icons/icons/%s.svg"
+	dashboardIconsSVG  = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/%s.svg"
+	dashboardIconsPNG  = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/%s.png"
 )
 
 var (
@@ -77,12 +80,43 @@ func NewResolver(dir string, client HTTPClient) (*Resolver, error) {
 			},
 		}
 	}
+	r := &Resolver{dir: dir, client: client, failed: map[string]struct{}{}}
 	if dir != "" {
-		if err := os.MkdirAll(filepath.Join(dir, "icons"), 0o755); err != nil {
+		if err := os.MkdirAll(r.iconsDir(), 0o755); err != nil {
+			return nil, err
+		}
+		if err := r.migrateCache(); err != nil {
 			return nil, err
 		}
 	}
-	return &Resolver{dir: dir, client: client, failed: map[string]struct{}{}}, nil
+	return r, nil
+}
+
+func (r *Resolver) migrateCache() error {
+	if r.dir == "" {
+		return nil
+	}
+	iconsDir := r.iconsDir()
+	marker := filepath.Join(iconsDir, ".lantern-icon-cache")
+	if b, err := os.ReadFile(marker); err == nil && strings.TrimSpace(string(b)) == cacheSourceVersion {
+		return nil
+	}
+	entries, err := os.ReadDir(iconsDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, "upload-") {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(iconsDir, name))
+	}
+	return os.WriteFile(marker, []byte(cacheSourceVersion+"\n"), 0o644)
+}
+
+func (r *Resolver) iconsDir() string {
+	return filepath.Join(r.dir, "icons")
 }
 
 func ItemKey(item config.Item) string {
@@ -231,30 +265,88 @@ func (r *Resolver) Resolve(item config.Item) error {
 		return fmt.Errorf("icon %s previously failed", key)
 	}
 
-	var (
-		body []byte
-		ext  string
-		err  error
-	)
-	switch {
-	case isHTTPURL(item.Icon):
-		body, ext, err = r.fetchBytes(item.Icon)
-	case item.Icon != "":
-		body, ext, err = r.fetchSimpleFor(item.Icon)
-	default:
-		err = fmt.Errorf("try auto")
-	}
-	if err != nil && item.Icon == "" {
-		body, ext, err = r.fetchSimpleFor(item.Name)
-	}
-	if err != nil {
-		body, ext, err = r.fetchFavicon(item.URL)
-	}
-	if err != nil || len(body) == 0 {
+	if isHTTPURL(item.Icon) {
+		body, ext, err := r.fetchBytes(item.Icon)
+		if err == nil && len(body) > 0 {
+			return r.write(key, ext, body)
+		}
 		r.markFail(key)
 		return err
 	}
-	return r.write(key, ext, body)
+
+	names := iconNames(item)
+	for _, name := range names {
+		body, ext, err := r.fetchDashboard(name)
+		if err == nil && len(body) > 0 {
+			return r.write(key, ext, body)
+		}
+	}
+	if body, ext, err := r.fetchFavicon(item.URL); err == nil && len(body) > 0 {
+		return r.write(key, ext, body)
+	}
+	for _, name := range names {
+		body, ext, err := r.fetchSimpleFor(name)
+		if err == nil && len(body) > 0 {
+			return r.write(key, ext, body)
+		}
+	}
+
+	r.markFail(key)
+	return fmt.Errorf("no icon found for %q", item.Name)
+}
+
+func iconNames(item config.Item) []string {
+	names := make([]string, 0, 2)
+	if iconSlug(item.Icon) {
+		names = append(names, item.Icon)
+	}
+	if item.Name != "" && (len(names) == 0 || names[0] != item.Name) {
+		names = append(names, item.Name)
+	}
+	return names
+}
+
+func iconSlug(s string) bool {
+	return s != "" && !isHTTPURL(s) && !strings.HasPrefix(s, "upload-")
+}
+
+func (r *Resolver) fetchDashboard(name string) ([]byte, string, error) {
+	var last error
+	for _, slug := range dashboardSlugs(name) {
+		body, ext, err := r.fetchDashboardSlug(slug)
+		if err == nil {
+			return body, ext, nil
+		}
+		last = err
+	}
+	if last == nil {
+		return nil, "", fmt.Errorf("dashboard icon not found")
+	}
+	return nil, "", last
+}
+
+func (r *Resolver) fetchDashboardSlug(slug string) ([]byte, string, error) {
+	if !validDashboardSlug(slug) {
+		return nil, "", fmt.Errorf("invalid dashboard icon slug")
+	}
+	body, ext, err := r.fetchBytes(fmt.Sprintf(dashboardIconsSVG, slug))
+	if err == nil {
+		return body, ext, nil
+	}
+	return r.fetchBytes(fmt.Sprintf(dashboardIconsPNG, slug))
+}
+
+func validDashboardSlug(slug string) bool {
+	if slug == "" || len(slug) > 80 {
+		return false
+	}
+	for _, r := range slug {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (r *Resolver) rememberedFail(key string) bool {
@@ -282,6 +374,28 @@ func (r *Resolver) Store(key, ext string, body []byte) error {
 	}
 	r.ForgetFail(key)
 	return r.write(key, ext, body)
+}
+
+func (r *Resolver) Drop(key string) {
+	if key == "" {
+		return
+	}
+	r.ForgetFail(key)
+	p := r.CachePath(key)
+	if p == "" {
+		return
+	}
+	if matches, _ := filepath.Glob(p + ".*"); len(matches) > 0 {
+		for _, old := range matches {
+			_ = os.Remove(old)
+		}
+	}
+	_ = os.Remove(p)
+}
+
+func (r *Resolver) Refresh(item config.Item) error {
+	r.Drop(ItemKey(item))
+	return r.Resolve(item)
 }
 
 func (r *Resolver) write(key, ext string, body []byte) error {

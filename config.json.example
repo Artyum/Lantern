@@ -7,14 +7,12 @@
         {
           "name": "Jellyfin",
           "url": "https://jellyfin.example.com",
-          "icon": "jellyfin",
           "col": 1,
           "row": 1
         },
         {
           "name": "Immich",
-          "url": "https://photos.example.com",
-          "icon": "immich"
+          "url": "https://photos.example.com"
         }
       ]
     },
@@ -23,23 +21,19 @@
       "items": [
         {
           "name": "Traefik",
-          "url": "https://traefik.example.com",
-          "icon": "traefikproxy"
+          "url": "https://traefik.example.com"
         },
         {
           "name": "Pi-hole",
-          "url": "https://pihole.example.com/admin",
-          "icon": "pihole"
+          "url": "https://pihole.example.com/admin"
         },
         {
           "name": "Portainer",
-          "url": "https://portainer.example.com",
-          "icon": "portainer"
+          "url": "https://portainer.example.com"
         },
         {
           "name": "Uptime Kuma",
-          "url": "https://status.example.com",
-          "icon": "uptimekuma"
+          "url": "https://status.example.com"
         }
       ]
     }

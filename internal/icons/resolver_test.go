@@ -46,6 +46,25 @@ func TestSimpleSlug(t *testing.T) {
 	}
 }
 
+func TestDashSlug(t *testing.T) {
+	cases := map[string]string{
+		"Uptime Kuma": "uptime-kuma",
+		"Pi-hole":     "pi-hole",
+		"Calibre Web": "calibre-web",
+		"Fresh RSS":   "fresh-rss",
+		"Portainer":   "portainer",
+	}
+	for in, want := range cases {
+		if got := dashSlug(in); got != want {
+			t.Fatalf("%q: got %q want %q", in, got, want)
+		}
+	}
+	slugs := dashboardSlugs("Uptime Kuma")
+	if len(slugs) != 2 || slugs[0] != "uptime-kuma" || slugs[1] != "uptimekuma" {
+		t.Fatalf("slugs %v", slugs)
+	}
+}
+
 func TestCatalogIndexUsesOfficialAliases(t *testing.T) {
 	idx := indexSimpleIcons([]simpleIcon{{
 		Title:   "diagrams.net",
@@ -89,7 +108,7 @@ func TestResolveUsesCatalogAlias(t *testing.T) {
 	}
 }
 
-func TestResolvePriorityManualThenSimpleThenFavicon(t *testing.T) {
+func TestResolvePriorityManualThenDashboardThenFaviconThenSimple(t *testing.T) {
 	dir := t.TempDir()
 	var hits []string
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -99,6 +118,12 @@ func TestResolvePriorityManualThenSimpleThenFavicon(t *testing.T) {
 		switch {
 		case strings.Contains(req.URL.String(), "manual.example/icon.svg"):
 			body = `<svg id="manual"/>`
+			code = 200
+		case strings.Contains(req.URL.Path, "/dashboard-icons/svg/grafana.svg"):
+			body = `<svg id="dashboard"/>`
+			code = 200
+		case strings.Contains(req.URL.Path, "/dashboard-icons/svg/uptime-kuma.svg"):
+			body = `<svg id="kuma"/>`
 			code = 200
 		case strings.Contains(req.URL.String(), "simple-icons"):
 			body = `<svg id="simple"/>`
@@ -137,14 +162,28 @@ func TestResolvePriorityManualThenSimpleThenFavicon(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _, ok = r2.Read(ItemKey(item2))
-	if !ok || !strings.Contains(string(data), "simple") {
-		t.Fatalf("expected simple icon, got %q", data)
+	if !ok || !strings.Contains(string(data), "dashboard") {
+		t.Fatalf("expected dashboard icon, got %q hits=%v", data, hits)
 	}
 
-	failSimple := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	dirKuma := t.TempDir()
+	rKuma, _ := NewResolver(dirKuma, client)
+	itemKuma := config.Item{Name: "Uptime Kuma", URL: "http://kuma.lan"}
+	if err := rKuma.Resolve(itemKuma); err != nil {
+		t.Fatal(err)
+	}
+	data, _, ok = rKuma.Read(ItemKey(itemKuma))
+	if !ok || !strings.Contains(string(data), "kuma") {
+		t.Fatalf("expected kebab dashboard icon, got %q", data)
+	}
+
+	failDash := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		body := "no"
 		code := 404
 		ct := "text/plain"
+		if strings.Contains(req.URL.Path, "/dashboard-icons/") || strings.Contains(req.URL.String(), "simple-icons") {
+			return &http.Response{StatusCode: 404, Body: io.NopCloser(strings.NewReader("no")), Header: make(http.Header), Request: req}, nil
+		}
 		if strings.HasSuffix(req.URL.Path, "/favicon.ico") {
 			body = "FAV"
 			code = 200
@@ -160,7 +199,7 @@ func TestResolvePriorityManualThenSimpleThenFavicon(t *testing.T) {
 		return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: h, Request: req}, nil
 	})}
 	dir3 := t.TempDir()
-	r3, _ := NewResolver(dir3, failSimple)
+	r3, _ := NewResolver(dir3, failDash)
 	item3 := config.Item{Name: "Unknownxyz", URL: "http://onlyfav.lan/"}
 	if err := r3.Resolve(item3); err != nil {
 		t.Fatal(err)
@@ -168,6 +207,90 @@ func TestResolvePriorityManualThenSimpleThenFavicon(t *testing.T) {
 	data, _, ok = r3.Read(ItemKey(item3))
 	if !ok || string(data) != "FAV" {
 		t.Fatalf("expected favicon, got %q ok=%v", data, ok)
+	}
+
+	onlySimple := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		body := "no"
+		code := 404
+		if strings.Contains(req.URL.String(), "simple-icons") && strings.HasSuffix(req.URL.Path, "/nosuchdash.svg") {
+			body = `<svg id="simple"/>`
+			code = 200
+		}
+		return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header), Request: req}, nil
+	})}
+	dir4 := t.TempDir()
+	r4, _ := NewResolver(dir4, onlySimple)
+	item4 := config.Item{Name: "No Such Dash", URL: "http://nosuch.lan"}
+	if err := r4.Resolve(item4); err != nil {
+		t.Fatal(err)
+	}
+	data, _, ok = r4.Read(ItemKey(item4))
+	if !ok || !strings.Contains(string(data), "simple") {
+		t.Fatalf("expected simple fallback, got %q", data)
+	}
+}
+
+func TestRefreshReplacesCachedIcon(t *testing.T) {
+	dir := t.TempDir()
+	n := 0
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		n++
+		body := `<svg id="first"/>`
+		if n >= 2 {
+			body = `<svg id="second"/>`
+		}
+		code := 404
+		if strings.Contains(req.URL.Path, "/dashboard-icons/svg/grafana.svg") {
+			code = 200
+		}
+		return &http.Response{
+			StatusCode: code,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})}
+	r, err := NewResolver(dir, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := config.Item{Name: "Grafana", URL: "http://grafana.lan"}
+	if err := r.Resolve(item); err != nil {
+		t.Fatal(err)
+	}
+	if data, _, _ := r.Read(ItemKey(item)); !strings.Contains(string(data), "first") {
+		t.Fatalf("got %q", data)
+	}
+	if err := r.Refresh(item); err != nil {
+		t.Fatal(err)
+	}
+	if data, _, _ := r.Read(ItemKey(item)); !strings.Contains(string(data), "second") {
+		t.Fatalf("got %q", data)
+	}
+}
+
+func TestCacheVersionClearsStaleIcons(t *testing.T) {
+	dir := t.TempDir()
+	iconsDir := filepath.Join(dir, "icons")
+	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(iconsDir, "portainer.svg"), []byte("<svg id='old'/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(iconsDir, "upload-abc.svg"), []byte("<svg id='keep'/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewResolver(dir, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := r.Read("portainer"); ok {
+		t.Fatal("expected stale dashboard cache to be cleared")
+	}
+	data, _, ok := r.Read("upload-abc")
+	if !ok || !strings.Contains(string(data), "keep") {
+		t.Fatalf("expected upload to remain, got %q ok=%v", data, ok)
 	}
 }
 

@@ -350,3 +350,65 @@ func TestAddAndDeleteItemAPI(t *testing.T) {
 		t.Fatalf("config %s", raw)
 	}
 }
+
+func TestRefreshItemIconAPI(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	body := `{
+		"title": "Test LAN",
+		"sections": [{"name":"Infra","items":[{"name":"Traefik","url":"http://traefik.lan"}]}]
+	}`
+	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := config.NewStore(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(dir, "cache")
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		code := 404
+		out := "no"
+		if strings.Contains(req.URL.Path, "/dashboard-icons/svg/traefik.svg") {
+			code = 200
+			out = `<svg id="fresh"/>`
+		}
+		return &http.Response{
+			StatusCode: code,
+			Body:       io.NopCloser(strings.NewReader(out)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})}
+	res, err := icons.NewResolver(cache, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iconDir := filepath.Join(cache, "icons")
+	if err := os.WriteFile(filepath.Join(iconDir, "traefik.svg"), []byte("<svg id='stale'/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := New(store, res)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/item/icon", strings.NewReader(`{"name":"Traefik","url":"http://traefik.lan"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("code %d %s", rec.Code, rec.Body.String())
+	}
+	var out APIItem
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out.Icon, "/icons/traefik") {
+		t.Fatalf("%+v", out)
+	}
+	iconPath := strings.Split(out.Icon, "?")[0]
+	req = httptest.NewRequest(http.MethodGet, iconPath, nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `id="fresh"`) {
+		t.Fatalf("icon %d %q", rec.Code, rec.Body.String())
+	}
+}

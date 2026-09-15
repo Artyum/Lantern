@@ -75,9 +75,10 @@ const editor = document.getElementById("item-editor");
 const itemForm = document.getElementById("item-form");
 const itemName = document.getElementById("item-name");
 const itemUrl = document.getElementById("item-url");
-const itemIcon = document.getElementById("item-icon");
 const itemIconFile = document.getElementById("item-icon-file");
 const itemIconPreview = document.getElementById("item-icon-preview");
+const itemIconRefresh = document.getElementById("item-icon-refresh");
+const itemIconUpload = document.getElementById("item-icon-upload");
 const itemError = document.getElementById("item-error");
 const itemTitle = document.getElementById("item-title");
 const itemCancel = document.getElementById("item-cancel");
@@ -951,11 +952,17 @@ function searching() {
 }
 
 function setIcon(img, url) {
+  const wrap = img.closest(".tile-icon, .icon-preview");
+  const stop = () => wrap?.classList.remove("loading");
+  if (wrap) wrap.classList.add("loading");
+  img.onload = stop;
   img.onerror = () => {
     img.onerror = null;
+    img.onload = stop;
     img.src = "/icons/__fallback";
   };
   img.src = url || "/icons/__fallback";
+  if (img.complete) stop();
 }
 
 function tile(item, sectionName) {
@@ -997,11 +1004,11 @@ function tile(item, sectionName) {
   img.width = 48;
   img.height = 48;
   img.draggable = false;
-  setIcon(img, item.icon);
 
   const iconWrap = document.createElement("span");
-  iconWrap.className = "tile-icon";
+  iconWrap.className = "tile-icon loading";
   iconWrap.append(img);
+  setIcon(img, item.icon);
 
   const strong = document.createElement("strong");
   strong.textContent = item.name;
@@ -1432,6 +1439,10 @@ function clearPreviewObjectUrl() {
   }
 }
 
+function isUploadIcon(value) {
+  return Boolean(value) && String(value).startsWith("upload-");
+}
+
 function fillEditor(sectionName, item) {
   const isNew = !item;
   editing = {
@@ -1439,18 +1450,21 @@ function fillEditor(sectionName, item) {
     isNew,
     originalUrl: item?.url || "",
     name: item?.name || "",
+    iconSource: item?.iconSource || "",
+    useAutoIcon: false,
   };
   itemTitle.textContent = isNew ? "New tile" : "Edit tile";
   itemSave.textContent = isNew ? "Add" : "Save";
   itemDelete.hidden = isNew;
   itemName.value = item?.name || "";
   itemUrl.value = item?.url || "";
-  itemIcon.value = item?.iconSource || "";
   itemIconFile.value = "";
   clearPreviewObjectUrl();
   setIcon(itemIconPreview, item?.icon);
   showItemError("");
   itemSave.disabled = false;
+  itemIconRefresh.disabled = false;
+  itemIconRefresh.classList.remove("busy");
   showDialog(editor, itemName);
 }
 
@@ -1477,13 +1491,50 @@ editor.addEventListener("cancel", () => {
   clearPreviewObjectUrl();
   editing = null;
 });
+itemIconUpload.addEventListener("click", () => itemIconFile.click());
 itemIconFile.addEventListener("change", () => {
   const file = itemIconFile.files && itemIconFile.files[0];
   clearPreviewObjectUrl();
+  if (editing) editing.useAutoIcon = false;
+  itemIconRefresh.disabled = false;
   if (!file) return;
   previewObjectUrl = URL.createObjectURL(file);
   itemIconPreview.onerror = null;
   itemIconPreview.src = previewObjectUrl;
+});
+
+itemIconRefresh.addEventListener("click", async () => {
+  const name = itemName.value.trim();
+  const url = itemUrl.value.trim();
+  if (!name || !url) {
+    showItemError("Name and URL are required.");
+    return;
+  }
+  itemIconFile.value = "";
+  clearPreviewObjectUrl();
+  if (editing) editing.useAutoIcon = true;
+  itemIconRefresh.disabled = true;
+  itemIconRefresh.classList.add("busy");
+  showItemError("");
+  try {
+    const res = await fetch("/api/item/icon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, url }),
+    });
+    if (!res.ok) {
+      const text = (await res.text()).trim() || "Could not refresh icon.";
+      showItemError(text);
+      return;
+    }
+    const out = await res.json();
+    setIcon(itemIconPreview, out.icon);
+  } catch {
+    showItemError("Could not refresh icon.");
+  } finally {
+    itemIconRefresh.classList.remove("busy");
+    itemIconRefresh.disabled = false;
+  }
 });
 
 itemForm.addEventListener("submit", async (event) => {
@@ -1496,15 +1547,21 @@ itemForm.addEventListener("submit", async (event) => {
     return;
   }
   itemSave.disabled = true;
+  itemSave.classList.add("busy");
   showItemError("");
   const body = new FormData();
   body.set("section", editing.sectionName);
   if (!editing.isNew) body.set("originalUrl", editing.originalUrl);
   body.set("name", name);
   body.set("url", url);
-  body.set("icon", itemIcon.value.trim());
   const file = itemIconFile.files && itemIconFile.files[0];
-  if (file) body.set("iconFile", file);
+  if (file) {
+    body.set("iconFile", file);
+  } else if (!editing.useAutoIcon && isUploadIcon(editing.iconSource)) {
+    body.set("icon", editing.iconSource);
+  } else {
+    body.set("icon", "");
+  }
   try {
     const res = await fetch("/api/item", { method: editing.isNew ? "POST" : "PUT", body });
     if (!res.ok) {
@@ -1518,6 +1575,8 @@ itemForm.addEventListener("submit", async (event) => {
   } catch {
     showItemError("Could not save.");
     itemSave.disabled = false;
+  } finally {
+    itemSave.classList.remove("busy");
   }
 });
 

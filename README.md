@@ -9,7 +9,7 @@ Lantern is a small Go web app that turns a JSON config into a dashboard of servi
 **What it does:**
 
 - Renders sections and clickable tiles from `config.json`
-- Resolves icons automatically (page favicon, [Simple Icons](https://simpleicons.org/), or a custom upload/URL)
+- Resolves icons automatically ([Dashboard Icons](https://dashboardicons.com), page favicon, [Simple Icons](https://simpleicons.org/), or a custom upload)
 - Lets you add, edit, and remove sections and tiles in the UI
 - Provides search and multiple color themes
 - Ships as a minimal distroless Docker image
@@ -41,8 +41,7 @@ Lantern is a small Go web app that turns a JSON config into a dashboard of servi
          "items": [
            {
              "name": "Traefik",
-             "url": "https://traefik.example.com",
-             "icon": "traefikproxy"
+             "url": "https://traefik.example.com"
            }
          ]
        }
@@ -64,14 +63,7 @@ Changes made in the UI are written back to `config.json` on the server.
 
 ### Icons
 
-The optional `icon` field on each item can be:
-
-| Value | Example | Behavior |
-|-------|---------|----------|
-| Simple Icons slug | `"portainer"` | Fetched from the Simple Icons CDN |
-| Image URL | `"https://example.com/icon.png"` | Downloaded and cached |
-| Empty | — | Lantern tries the service URL favicon |
-| Upload | via tile editor | Stored in the icon cache volume |
+Lantern looks up a color icon from [Dashboard Icons](https://dashboardicons.com) using the tile name, then the service favicon, then [Simple Icons](https://simpleicons.org/). Upload a custom image in the tile editor to override it. The reload button on the preview fetches the automatic icon again.
 
 ### Environment variables
 

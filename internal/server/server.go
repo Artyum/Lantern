@@ -104,6 +104,7 @@ func New(store *config.Store, resolver *icons.Resolver) http.Handler {
 	s.mux.HandleFunc("PUT /api/item", s.updateItem)
 	s.mux.HandleFunc("POST /api/item", s.addItem)
 	s.mux.HandleFunc("DELETE /api/item", s.deleteItem)
+	s.mux.HandleFunc("POST /api/item/icon", s.refreshItemIcon)
 	s.mux.HandleFunc("POST /api/section", s.addSection)
 	s.mux.HandleFunc("DELETE /api/section", s.deleteSection)
 	s.mux.HandleFunc("PUT /api/layout", s.setLayout)
@@ -260,7 +261,7 @@ func (s *Server) updateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.icons.ForgetFail(icons.ItemKey(next))
-	_ = s.icons.Resolve(next)
+	go func(item config.Item) { _ = s.icons.Resolve(item) }(next)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(s.toAPIItem(next))
@@ -306,8 +307,30 @@ func (s *Server) addItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.icons.ForgetFail(icons.ItemKey(next))
-	_ = s.icons.Resolve(next)
+	go func(item config.Item) { _ = s.icons.Resolve(item) }(next)
 
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(s.toAPIItem(next))
+}
+
+func (s *Server) refreshItemIcon(w http.ResponseWriter, r *http.Request) {
+	var in itemUpdate
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	next := config.Item{
+		Name: strings.TrimSpace(in.Name),
+		URL:  strings.TrimSpace(in.URL),
+	}
+	if next.Name == "" || next.URL == "" {
+		http.Error(w, "name and url are required", http.StatusBadRequest)
+		return
+	}
+	if err := s.icons.Refresh(next); err != nil {
+		http.Error(w, "could not refresh icon", http.StatusBadGateway)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(s.toAPIItem(next))
 }
