@@ -18,7 +18,6 @@ const sectionNavBackdrop = document.getElementById("section-nav-backdrop");
 const widthPicker = document.getElementById("width-picker");
 const widthToggle = document.getElementById("width-toggle");
 const widthPanel = document.getElementById("width-panel");
-const widthClose = document.getElementById("width-close");
 const gridColsPicker = document.getElementById("grid-cols-picker");
 
 const THEME_KEY = "lantern-theme";
@@ -107,6 +106,38 @@ let editing = null;
 let previewObjectUrl = "";
 let deletingSection = null;
 let deletingItem = null;
+const dropdownTimers = new WeakMap();
+
+function clearDropdownTimer(dropdown) {
+  const timer = dropdownTimers.get(dropdown);
+  if (timer) window.clearTimeout(timer);
+  dropdownTimers.delete(dropdown);
+}
+
+function openDropdown(dropdown) {
+  clearDropdownTimer(dropdown);
+  dropdown.hidden = false;
+  dropdown.classList.remove("is-closing");
+  dropdown.classList.add("is-opening");
+  const timer = window.setTimeout(() => {
+    dropdown.classList.remove("is-opening");
+    dropdownTimers.delete(dropdown);
+  }, 220);
+  dropdownTimers.set(dropdown, timer);
+}
+
+function closeDropdown(dropdown) {
+  if (dropdown.hidden) return;
+  clearDropdownTimer(dropdown);
+  dropdown.classList.remove("is-opening");
+  dropdown.classList.add("is-closing");
+  const timer = window.setTimeout(() => {
+    dropdown.hidden = true;
+    dropdown.classList.remove("is-closing");
+    dropdownTimers.delete(dropdown);
+  }, 180);
+  dropdownTimers.set(dropdown, timer);
+}
 
 function themeMeta(id) {
   return THEME_LIST.find((entry) => entry.id === id) || THEME_LIST[0];
@@ -146,7 +177,7 @@ function themeMenuOpen() {
 
 function openThemeMenu() {
   closeWidthPanel();
-  themeMenu.hidden = false;
+  openDropdown(themeMenu);
   themeToggle.setAttribute("aria-expanded", "true");
   themePicker.classList.add("open");
   const selected = themeMenu.querySelector('[aria-selected="true"]');
@@ -154,7 +185,7 @@ function openThemeMenu() {
 }
 
 function closeThemeMenu() {
-  themeMenu.hidden = true;
+  closeDropdown(themeMenu);
   themeToggle.setAttribute("aria-expanded", "false");
   themePicker.classList.remove("open");
 }
@@ -379,14 +410,14 @@ function widthPanelOpen() {
 function openWidthPanel() {
   closeThemeMenu();
   updateGridColsPicker();
-  widthPanel.hidden = false;
+  openDropdown(widthPanel);
   widthToggle.setAttribute("aria-expanded", "true");
   widthPicker.classList.add("open");
   gridColsPicker?.querySelector(`[data-cols="${gridCols}"]`)?.focus();
 }
 
 function closeWidthPanel() {
-  widthPanel.hidden = true;
+  closeDropdown(widthPanel);
   widthToggle.setAttribute("aria-expanded", "false");
   widthPicker.classList.remove("open");
   updateGridColsPicker();
@@ -541,7 +572,6 @@ widthToggle?.addEventListener("click", () => {
   if (widthPanelOpen()) closeWidthPanel();
   else openWidthPanel();
 });
-widthClose?.addEventListener("click", closeWidthPanel);
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (widthPanelOpen()) {
@@ -1170,6 +1200,12 @@ async function moveSection(name, dir) {
   const next = index + dir;
   if (index < 0 || next < 0 || next >= list.length) return;
   const neighbor = list[next];
+  const beforePositions = new Map(
+    [...board.querySelectorAll(".section")].map((section) => [
+      section.dataset.sectionName,
+      section.getBoundingClientRect(),
+    ]),
+  );
   const copy = list.slice();
   const [section] = copy.splice(index, 1);
   copy.splice(next, 0, section);
@@ -1182,6 +1218,7 @@ async function moveSection(name, dir) {
       if (dir < 0) board.insertBefore(moved, adjacent);
       else adjacent.after(moved);
     }
+    animateSectionReorder(beforePositions);
     updateSectionMoveButtons();
     renderNav("");
     setupNavObserver();
@@ -1214,20 +1251,65 @@ function restoreScroll() {
   savedScroll = null;
 }
 
+function animateSectionReorder(beforePositions) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (const section of board.querySelectorAll(".section")) {
+    const before = beforePositions.get(section.dataset.sectionName);
+    if (!before) continue;
+    const after = section.getBoundingClientRect();
+    const deltaY = before.top - after.top;
+    if (Math.abs(deltaY) < 1) continue;
+    const animation = section.animate(
+      [
+        { transform: `translateY(${deltaY}px)` },
+        { transform: "translateY(0)" },
+      ],
+      {
+        duration: 360,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+    );
+    animation.onfinish = () => section.style.removeProperty("transform");
+  }
+}
+
 function showDialog(dialog, focusEl) {
+  if (dialog.dataset.closeTimer) {
+    window.clearTimeout(Number(dialog.dataset.closeTimer));
+    delete dialog.dataset.closeTimer;
+  }
   saveScroll();
+  dialog.classList.remove("is-closing");
   dialog.showModal();
+  dialog.classList.add("is-opening");
+  window.setTimeout(() => dialog.classList.remove("is-opening"), 240);
   focusEl?.focus({ preventScroll: true });
 }
 
 function closeDialog(dialog) {
   if (!dialog?.open) return;
-  dialog.close();
-  restoreScroll();
+  if (dialog.dataset.closeTimer) return;
+  dialog.classList.remove("is-opening");
+  dialog.classList.add("is-closing");
+  const timer = window.setTimeout(() => {
+    delete dialog.dataset.closeTimer;
+    dialog.classList.remove("is-closing");
+    dialog.close();
+  }, 180);
+  dialog.dataset.closeTimer = String(timer);
 }
 
 for (const dialog of document.querySelectorAll("dialog")) {
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeDialog(dialog);
+  });
   dialog.addEventListener("close", () => {
+    dialog.classList.remove("is-opening", "is-closing");
+    if (dialog.dataset.closeTimer) {
+      window.clearTimeout(Number(dialog.dataset.closeTimer));
+      delete dialog.dataset.closeTimer;
+    }
     restoreScroll();
   });
 }

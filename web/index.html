@@ -17,7 +17,7 @@
       document.documentElement.setAttribute("data-scheme", dark[id] ? "dark" : "light");
     })();
   </script>
-  <link rel="stylesheet" href="/app.css?v=32">
+  <link rel="stylesheet" href="/app.css?v=36">
   <link rel="icon" href="/icons/__fallback" type="image/svg+xml">
 </head>
 <body>
@@ -44,6 +44,12 @@
           <span class="sr-only">Cards per row</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
         </button>
+        <div id="width-panel" class="width-panel" role="dialog" aria-label="Cards per row" hidden>
+          <div class="width-panel-head">
+            <span class="width-panel-title">Cards per row</span>
+          </div>
+          <div id="grid-cols-picker" class="grid-cols-picker" role="group" aria-label="Cards per row"></div>
+        </div>
       </div>
       <div class="theme-picker" id="theme-picker">
         <button type="button" id="theme-toggle" class="theme-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="theme-menu" title="Color theme">
@@ -87,15 +93,6 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6l6 6-6 6"/></svg>
   </button>
   <div id="section-nav-backdrop" class="section-nav-backdrop" hidden></div>
-  <div id="width-panel" class="width-panel" role="dialog" aria-label="Cards per row" hidden>
-    <div class="width-panel-head">
-      <span class="width-panel-title">Cards per row</span>
-      <button type="button" id="width-close" class="width-panel-close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <div id="grid-cols-picker" class="grid-cols-picker" role="group" aria-label="Cards per row"></div>
-  </div>
   <dialog id="item-editor" class="item-editor">
     <form id="item-form">
       <h2 id="item-title">Edit tile</h2>
@@ -164,6 +161,6 @@
       </div>
     </form>
   </dialog>
-  <script src="/app.js?v=36"></script>
+  <script src="/app.js?v=39"></script>
 </body>
 </html>
