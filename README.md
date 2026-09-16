@@ -2,6 +2,15 @@
 
 A lightweight start page for self-hosted services. Configure links in a JSON file, get automatic icons, and manage tiles from the browser.
 
+<p align="center">
+  <img src="docs/screenshots/morning-mist.png" alt="Lantern in Morning Mist" width="48%">
+  <img src="docs/screenshots/sandy-dawn.png" alt="Lantern in Sandy Dawn" width="48%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/deep-ocean.png" alt="Lantern in Deep Ocean" width="48%">
+  <img src="docs/screenshots/charcoal-dusk.png" alt="Lantern in Charcoal Dusk" width="48%">
+</p>
+
 ## About
 
 Lantern is a small Go web app that turns a JSON config into a dashboard of service tiles grouped by section. It is designed for homelabs and self-hosted setups where you want a single landing page for Traefik, Pi-hole, media servers, and everything else on your network.

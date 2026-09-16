@@ -11,6 +11,7 @@ deploy/config.json
 tmp/
 report/
 data/
+docs/screenshots/.cache/
 
 # Docker volumes
 mount/data/
