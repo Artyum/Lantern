@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 [build]
   cmd = "go build -buildvcs=false -o ./tmp/lantern ./cmd/lantern"
   bin = "./tmp/lantern"
-  include_ext = ["go", "html", "css", "js", "woff2"]
+  include_ext = ["go", "html", "css", "js", "woff2", "svg"]
   exclude_dir = ["tmp", "data", "report", "deploy"]
   exclude_regex = ["_test.go"]
   delay = 500

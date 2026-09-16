@@ -815,10 +815,8 @@ html[data-theme="rose-night"] {
   --danger-ink: var(--color-chip-red-fg);
   --overlay: color-mix(in oklab, var(--color-ink) 42%, transparent);
   --shine: var(--surface-highlight);
-  --mark-core: var(--color-on-pulse);
-  --mark-edge: var(--color-pulse-deep);
-  --title-from: var(--color-ink);
-  --title-to: var(--color-pulse);
+  --brand-title-from: #e0b070;
+  --brand-title-to: #c9923a;
   color-scheme: var(--scheme);
   font-family: Outfit, "Segoe UI Variable", "Segoe UI", "Avenir Next", "Trebuchet MS", sans-serif;
 }
@@ -899,42 +897,20 @@ body {
 }
 
 .mark {
-  position: relative;
   width: 42px;
   height: 42px;
   flex: 0 0 auto;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 40% 32%, var(--mark-core) 0 18%, var(--accent-2) 38%, var(--accent) 62%, var(--mark-edge) 100%);
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent),
-    inset 0 -8px 12px color-mix(in srgb, var(--mark-edge) 55%, transparent);
-  animation: flicker 4.8s ease-in-out infinite;
-}
-.mark::after {
-  content: "";
-  position: absolute;
-  inset: 9px 14px auto;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--shine);
-  filter: blur(1px);
-}
-
-@keyframes flicker {
-  0%, 100% { filter: brightness(1); }
-  40% { filter: brightness(1.12); }
-  55% { filter: brightness(0.96); }
-  70% { filter: brightness(1.08); }
+  display: block;
+  object-fit: contain;
 }
 
 h1 {
-  font-size: 1.55rem;
+  font-size: 1.9rem;
   font-weight: 600;
   letter-spacing: -0.045em;
   margin: 0;
   line-height: 1.1;
-  background: linear-gradient(180deg, var(--title-from), var(--title-to));
+  background: linear-gradient(180deg, var(--brand-title-from), var(--brand-title-to));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -2171,5 +2147,5 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mark, .section, .tile, .section-body, .section-body-inner, .section-chevron, .section-nav, .section-nav-toggle svg, .section-nav-edge, .item-editor, .width-panel, .theme-menu { animation: none !important; transition: none !important; }
+  .section, .tile, .section-body, .section-body-inner, .section-chevron, .section-nav, .section-nav-toggle svg, .section-nav-edge, .item-editor, .width-panel, .theme-menu { animation: none !important; transition: none !important; }
 }

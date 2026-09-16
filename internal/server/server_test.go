@@ -115,11 +115,11 @@ func TestServeCachedIconAndFallback(t *testing.T) {
 		t.Fatalf("missing icon content-type %q", rec.Header().Get("Content-Type"))
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/icons/__fallback", nil)
+	req = httptest.NewRequest(http.MethodGet, "/icons/__logo", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != 200 || rec.Header().Get("Content-Type") != "image/svg+xml" {
-		t.Fatalf("fallback %d %s", rec.Code, rec.Header().Get("Content-Type"))
+		t.Fatalf("logo %d %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
 }
 

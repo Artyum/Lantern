@@ -20,8 +20,8 @@ import (
 	"lantern/internal/config"
 )
 
-//go:embed fallback.svg
-var fallbackFS embed.FS
+//go:embed logo.svg
+var logoFS embed.FS
 
 const (
 	maxBody            = 512 * 1024
@@ -52,8 +52,8 @@ type Resolver struct {
 	catalog     map[string]string
 }
 
-func FallbackSVG() []byte {
-	b, err := fallbackFS.ReadFile("fallback.svg")
+func LogoSVG() []byte {
+	b, err := logoFS.ReadFile("logo.svg")
 	if err != nil {
 		return []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"/>`)
 	}

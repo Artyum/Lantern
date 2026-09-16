@@ -584,8 +584,8 @@ func (s *Server) itemByIconKey(key string) (config.Item, bool) {
 
 func (s *Server) icon(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
-	if key == "__fallback" || !validKey(key) {
-		writeFallback(w)
+	if key == "__logo" || !validKey(key) {
+		writeLogo(w)
 		return
 	}
 	data, ct, ok := s.icons.Read(key)
@@ -598,7 +598,7 @@ func (s *Server) icon(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !ok {
-		writeFallback(w)
+		writeLogo(w)
 		return
 	}
 	w.Header().Set("Content-Type", ct)
@@ -622,8 +622,8 @@ func validKey(key string) bool {
 	return true
 }
 
-func writeFallback(w http.ResponseWriter) {
+func writeLogo(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-	_, _ = w.Write(icons.FallbackSVG())
+	_, _ = w.Write(icons.LogoSVG())
 }

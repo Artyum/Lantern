@@ -959,9 +959,9 @@ function setIcon(img, url) {
   img.onerror = () => {
     img.onerror = null;
     img.onload = stop;
-    img.src = "/icons/__fallback";
+    img.src = "/icons/__logo";
   };
-  img.src = url || "/icons/__fallback";
+  img.src = url || "/icons/__logo";
   if (img.complete) stop();
 }
 
