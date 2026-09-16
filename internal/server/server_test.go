@@ -412,3 +412,19 @@ func TestRefreshItemIconAPI(t *testing.T) {
 		t.Fatalf("icon %d %q", rec.Code, rec.Body.String())
 	}
 }
+
+func TestOutfitFontServed(t *testing.T) {
+	h := testServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/fonts/outfit-latin.woff2", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("code %d", rec.Code)
+	}
+	if rec.Body.Len() < 1000 {
+		t.Fatalf("font too small: %d", rec.Body.Len())
+	}
+	if !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
+		t.Fatalf("cache %q", rec.Header().Get("Cache-Control"))
+	}
+}

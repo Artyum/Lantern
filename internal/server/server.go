@@ -127,6 +127,10 @@ func (s *Server) staticAssetsHandler(next http.Handler) http.Handler {
 		switch r.URL.Path {
 		case "/app.css", "/app.js":
 			w.Header().Set("Cache-Control", "no-cache")
+		default:
+			if strings.HasPrefix(r.URL.Path, "/fonts/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
