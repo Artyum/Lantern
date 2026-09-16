@@ -167,12 +167,16 @@ func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "page unavailable", http.StatusInternalServerError)
 		return
 	}
-	page = []byte(strings.Replace(
-		string(page),
+	html := string(page)
+	html = strings.ReplaceAll(html, web.AssetCSSPlaceholder, web.CSSHash)
+	html = strings.ReplaceAll(html, web.AssetJSPlaceholder, web.JSHash)
+	html = strings.Replace(
+		html,
 		"<!-- initial-config -->",
 		`<script id="initial-config" type="application/json">`+string(configJSON)+`</script>`,
 		1,
-	))
+	)
+	page = []byte(html)
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(page)
