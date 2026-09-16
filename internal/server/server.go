@@ -591,7 +591,6 @@ func (s *Server) icon(w http.ResponseWriter, r *http.Request) {
 	data, ct, ok := s.icons.Read(key)
 	if !ok {
 		if item, found := s.itemByIconKey(key); found {
-			s.icons.ForgetFail(key)
 			if err := s.icons.Resolve(item); err == nil {
 				data, ct, ok = s.icons.Read(key)
 			}

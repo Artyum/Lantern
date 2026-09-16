@@ -123,6 +123,70 @@ func TestServeCachedIconAndFallback(t *testing.T) {
 	}
 }
 
+func TestIconGETDoesNotRetryAfterFailure(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	body := `{
+		"title": "Test LAN",
+		"sections": [{"name":"Infra","items":[{"name":"Nope","url":"http://nope.lan"}]}]
+	}`
+	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := config.NewStore(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(dir, "cache")
+	n := 0
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		n++
+		return &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(strings.NewReader("no")),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})}
+	res, err := icons.NewResolver(cache, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(store, res)
+
+	req := httptest.NewRequest(http.MethodGet, "/icons/nope", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first get %d %s", rec.Code, rec.Body.String())
+	}
+	first := n
+	if first == 0 {
+		t.Fatal("expected external fetch on first get")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/icons/nope", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second get %d %s", rec.Code, rec.Body.String())
+	}
+	if n != first {
+		t.Fatalf("retried after failure on get: %d -> %d", first, n)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/item/icon", strings.NewReader(`{"name":"Nope","url":"http://nope.lan"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("refresh code %d %s", rec.Code, rec.Body.String())
+	}
+	if n <= first {
+		t.Fatalf("expected refresh to retry external fetch: %d -> %d", first, n)
+	}
+}
+
 func TestUpdateItemJSON(t *testing.T) {
 	h, dir := testServerDir(t)
 	body := `{"section":"Infra","originalUrl":"http://traefik.lan","name":"Traefik Proxy","url":"https://traefik.lan","icon":"traefik"}`

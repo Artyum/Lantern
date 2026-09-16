@@ -2029,9 +2029,14 @@ h1 {
 }
 .form-error {
   margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--danger) 35%, var(--color-frame));
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--danger) 10%, var(--color-surface-2));
   color: var(--danger);
   font-size: 0.95rem;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1.45;
 }
 #item-delete {
   margin-right: auto;

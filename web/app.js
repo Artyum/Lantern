@@ -1427,6 +1427,15 @@ function render() {
 
 q.addEventListener("input", render);
 
+const ICON_REFRESH_ERROR =
+  "Could not find an icon automatically. Check the name and URL, or upload your own.";
+
+function iconRefreshErrorMessage(text) {
+  const raw = (text || "").trim();
+  if (!raw || /^could not refresh icon\.?$/i.test(raw)) return ICON_REFRESH_ERROR;
+  return raw;
+}
+
 function showItemError(message) {
   itemError.hidden = !message;
   itemError.textContent = message || "";
@@ -1502,6 +1511,9 @@ itemIconFile.addEventListener("change", () => {
   itemIconPreview.onerror = null;
   itemIconPreview.src = previewObjectUrl;
 });
+itemIconFile.addEventListener("cancel", (event) => {
+  event.stopPropagation();
+});
 
 itemIconRefresh.addEventListener("click", async () => {
   const name = itemName.value.trim();
@@ -1523,14 +1535,13 @@ itemIconRefresh.addEventListener("click", async () => {
       body: JSON.stringify({ name, url }),
     });
     if (!res.ok) {
-      const text = (await res.text()).trim() || "Could not refresh icon.";
-      showItemError(text);
+      showItemError(iconRefreshErrorMessage(await res.text()));
       return;
     }
     const out = await res.json();
     setIcon(itemIconPreview, out.icon);
   } catch {
-    showItemError("Could not refresh icon.");
+    showItemError(ICON_REFRESH_ERROR);
   } finally {
     itemIconRefresh.classList.remove("busy");
     itemIconRefresh.disabled = false;
