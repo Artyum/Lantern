@@ -10,7 +10,6 @@ on:
 permissions:
   contents: read
   packages: write
-  actions: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -21,9 +20,9 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: "1.27"
           cache: false
@@ -38,139 +37,87 @@ jobs:
         run: go test ./... -count=1 -race
 
   build:
-    name: Build & push image
+    name: Build, smoke test & publish image
     needs: test
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lowercase image name
+        id: image
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
-        uses: docker/build-push-action@v7
+      - name: Build image once
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: |
+            lantern:ci
+            ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  cleanup:
-    name: Cleanup
-    needs: [test, build]
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    env:
-      KEEP: "3"
-    steps:
-      - name: Keep ${{ env.KEEP }} newest GHCR images
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          OWNER_TYPE: ${{ github.event.repository.owner.type }}
-          PACKAGE: ${{ github.event.repository.name }}
+      - name: Prepare smoke-test config
+        run: |
+          mkdir -p "$RUNNER_TEMP/lantern-data"
+          printf '{}\n' > "$RUNNER_TEMP/lantern-config.json"
+
+      - name: Smoke test image
         run: |
           set -euo pipefail
-          package="$(echo "$PACKAGE" | tr '[:upper:]' '[:lower:]')"
-          if [ "$OWNER_TYPE" = "Organization" ]; then
-            api="orgs/${OWNER}"
-          else
-            api="users/${OWNER}"
-          fi
+          image="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n 1)"
+          docker run -d --name lantern-ci \
+            -p 18080:8080 \
+            -e CONFIG_PATH=/config/config.json \
+            -e CACHE_DIR=/data/cache \
+            -e LISTEN=:8080 \
+            -v "$RUNNER_TEMP/lantern-config.json:/config/config.json:ro" \
+            -v "$RUNNER_TEMP/lantern-data:/data" \
+            "$image"
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/healthz >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs lantern-ci
+          exit 1
 
-          ids="$(gh api --paginate "/${api}/packages/container/${package}/versions" \
-            --jq "sort_by(.created_at) | reverse | .[${KEEP}:] | .[].id" || true)"
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-          if [ -z "${ids}" ]; then
-            echo "No GHCR versions to delete (keeping up to ${KEEP})."
-            exit 0
-          fi
-
-          deleted=0
-          while IFS= read -r id; do
-            [ -z "${id}" ] && continue
-            echo "Deleting GHCR version ${id}"
-            gh api -X DELETE "/${api}/packages/container/${package}/versions/${id}"
-            deleted=$((deleted + 1))
-          done <<< "${ids}"
-          echo "Deleted ${deleted} GHCR version(s)."
-
-      - name: Keep ${{ env.KEEP }} newest runs per workflow
+      - name: Push tested image tags
+        if: github.event_name != 'pull_request'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          CURRENT_RUN: ${{ github.run_id }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
-          workflows="$(gh api --paginate "/repos/${REPO}/actions/workflows?per_page=100" \
-            --jq '.workflows[] | [.id, .path] | @tsv')"
-          if [ -z "${workflows}" ]; then
-            echo "No workflows found."
-            exit 0
-          fi
+          while IFS= read -r tag; do
+            [ -z "$tag" ] || docker push "$tag"
+          done <<< "$IMAGE_TAGS"
 
-          deleted=0
-          while IFS=$'\t' read -r workflow_id path; do
-            [ -z "${workflow_id}" ] && continue
-            name="$(basename "${path}")"
-            echo "Cleaning runs for ${name}"
-            # API returns newest runs first. Keep the newest ${KEEP}.
-            ids="$(gh api --paginate \
-              "/repos/${REPO}/actions/workflows/${workflow_id}/runs?per_page=100" \
-              --jq ".workflow_runs | .[${KEEP}:] | .[].id" || true)"
-            while IFS= read -r id; do
-              [ -z "${id}" ] && continue
-              if [ "${id}" = "${CURRENT_RUN}" ]; then
-                continue
-              fi
-              echo "Deleting run ${id} (${name})"
-              gh api -X DELETE "/repos/${REPO}/actions/runs/${id}"
-              deleted=$((deleted + 1))
-            done <<< "${ids}"
-          done <<< "${workflows}"
-          echo "Deleted ${deleted} workflow run(s)."
-
-      - name: Keep ${{ env.KEEP }} newest Actions caches
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          ids="$(gh api --paginate "/repos/${REPO}/actions/caches" --jq '.actions_caches[]' \
-            | jq -s "sort_by(.created_at) | reverse | .[${KEEP}:] | .[].id" || true)"
-
-          if [ -z "${ids}" ]; then
-            echo "No Actions caches to delete (keeping up to ${KEEP})."
-            exit 0
-          fi
-
-          deleted=0
-          while IFS= read -r id; do
-            [ -z "${id}" ] && continue
-            echo "Deleting cache ${id}"
-            gh cache delete "${id}" --repo "${REPO}"
-            deleted=$((deleted + 1))
-          done <<< "${ids}"
-          echo "Deleted ${deleted} cache(s)."
+      - name: Cleanup smoke container
+        if: always()
+        run: docker rm -f lantern-ci 2>/dev/null || true
