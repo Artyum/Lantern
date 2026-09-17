@@ -202,6 +202,7 @@ go run ./cmd/lantern
 | `GET` | `/healthz` | Health check |
 | `GET` | `/api/config` | Current configuration |
 | `POST` | `/api/section` | Add a section |
+| `PUT` | `/api/section` | Rename a section |
 | `DELETE` | `/api/section` | Delete a section |
 | `POST` | `/api/item` | Add a tile |
 | `PUT` | `/api/item` | Update a tile |

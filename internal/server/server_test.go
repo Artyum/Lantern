@@ -295,6 +295,51 @@ func TestAddAndDeleteSectionAPI(t *testing.T) {
 	}
 }
 
+func TestRenameSectionAPI(t *testing.T) {
+	h, dir := testServerDir(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/section", strings.NewReader(`{"originalName":"Infra","name":"Core"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("rename %d %s", rec.Code, rec.Body.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"name": "Core"`) || strings.Contains(string(raw), `"Infra"`) {
+		t.Fatalf("config %s", raw)
+	}
+	if !strings.Contains(string(raw), "Traefik") {
+		t.Fatalf("items lost: %s", raw)
+	}
+
+	req = httptest.NewRequest(http.MethodPut, "/api/section", strings.NewReader(`{"originalName":"Core","name":"core"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("case rename %d %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/section", strings.NewReader(`{"name":"Media"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("add %d %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPut, "/api/section", strings.NewReader(`{"originalName":"core","name":"Media"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("dup %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestSetLayoutAPI(t *testing.T) {
 	h, dir := testServerDir(t)
 	addReq := httptest.NewRequest(http.MethodPost, "/api/item", strings.NewReader(`{"section":"Infra","name":"Pi-hole","url":"http://dns.lan","icon":"pihole"}`))

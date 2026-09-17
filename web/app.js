@@ -69,6 +69,7 @@ const ICON_MORE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="tru
 const ICON_GRIP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="7" r="1.4"/><circle cx="15" cy="7" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="17" r="1.4"/><circle cx="15" cy="17" r="1.4"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
 const ICON_CHEVRON = '<svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10l6 6 6-6"/></svg>';
 
 const editor = document.getElementById("item-editor");
@@ -91,6 +92,7 @@ const itemConfirmError = document.getElementById("item-confirm-error");
 const itemConfirmCancel = document.getElementById("item-confirm-cancel");
 const itemConfirmOk = document.getElementById("item-confirm-ok");
 const sectionEditor = document.getElementById("section-editor");
+const sectionEditorTitle = document.getElementById("section-editor-title");
 const sectionForm = document.getElementById("section-form");
 const sectionNameInput = document.getElementById("section-name");
 const sectionError = document.getElementById("section-error");
@@ -106,6 +108,7 @@ const sectionConfirmOk = document.getElementById("section-confirm-ok");
 let editing = null;
 let previewObjectUrl = "";
 let deletingSection = null;
+let renamingSection = null;
 let deletingItem = null;
 const dropdownTimers = new WeakMap();
 
@@ -639,6 +642,14 @@ function loadCollapsed() {
 
 function saveCollapsed(names) {
   localStorage.setItem(COLLAPSED_KEY, JSON.stringify(names));
+}
+
+function renameCollapsedSection(oldName, newName) {
+  const collapsed = loadCollapsed();
+  const index = collapsed.indexOf(oldName);
+  if (index === -1) return;
+  collapsed[index] = newName;
+  saveCollapsed(collapsed);
 }
 
 function isCollapsed(name) {
@@ -1408,6 +1419,7 @@ function render() {
     moves.append(
       moveUp,
       moveDown,
+      moveButton(`Rename section ${section.name}`, ICON_EDIT, false, () => openRenameSection(section)),
       moveButton(`Add tile to ${section.name}`, ICON_PLUS, false, () => openCreate(section.name)),
       moveButton(`Delete section ${section.name}`, ICON_TRASH, false, () => openDeleteSection(section), "danger-icon"),
     );
@@ -1683,15 +1695,34 @@ function showSectionError(el, message) {
   el.textContent = message || "";
 }
 
+function setSectionEditorMode(mode) {
+  const rename = mode === "rename";
+  sectionEditorTitle.textContent = rename ? "Rename section" : "New section";
+  sectionSave.textContent = rename ? "Save" : "Add";
+}
+
 function openAddSection() {
   if (searching()) return;
+  renamingSection = null;
+  setSectionEditorMode("add");
   sectionNameInput.value = "";
   showSectionError(sectionError, "");
   sectionSave.disabled = false;
   showDialog(sectionEditor, sectionNameInput);
 }
 
+function openRenameSection(section) {
+  if (searching()) return;
+  renamingSection = section.name;
+  setSectionEditorMode("rename");
+  sectionNameInput.value = section.name;
+  showSectionError(sectionError, "");
+  sectionSave.disabled = false;
+  showDialog(sectionEditor, sectionNameInput);
+}
+
 function closeAddSection() {
+  renamingSection = null;
   sectionForm.reset();
   showSectionError(sectionError, "");
   closeDialog(sectionEditor);
@@ -1731,24 +1762,26 @@ sectionForm.addEventListener("submit", async (event) => {
     showSectionError(sectionError, "Name is required.");
     return;
   }
+  const originalName = renamingSection;
   sectionSave.disabled = true;
   showSectionError(sectionError, "");
   try {
     const res = await fetch("/api/section", {
-      method: "POST",
+      method: originalName ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(originalName ? { name, originalName } : { name }),
     });
     if (!res.ok) {
-      const text = (await res.text()).trim() || "Could not add section.";
+      const text = (await res.text()).trim() || (originalName ? "Could not rename section." : "Could not add section.");
       showSectionError(sectionError, text);
       sectionSave.disabled = false;
       return;
     }
+    if (originalName && originalName !== name) renameCollapsedSection(originalName, name);
     closeAddSection();
     await boot();
   } catch {
-    showSectionError(sectionError, "Could not add section.");
+    showSectionError(sectionError, originalName ? "Could not rename section." : "Could not add section.");
     sectionSave.disabled = false;
   }
 });

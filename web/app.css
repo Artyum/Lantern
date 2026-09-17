@@ -1505,7 +1505,7 @@ h1 {
 .section h2 {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 12px;
   margin: 0 0 16px;
   padding: 0 4px;
@@ -1522,9 +1522,9 @@ h1 {
   align-items: center;
   gap: 10px;
   flex: 0 1 auto;
-  max-width: calc(100% - 116px);
-  min-width: 0;
-  overflow: hidden;
+  min-width: min-content;
+  max-width: 100%;
+  overflow: visible;
   margin: 0;
   padding: 4px 6px 4px 2px;
   border: 0;
@@ -1555,9 +1555,8 @@ h1 {
 }
 .section-name {
   flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: min-content;
+  overflow: visible;
   white-space: nowrap;
 }
 #board.searching .section-toggle { cursor: default; }
@@ -1573,7 +1572,7 @@ h1 {
 }
 .section-rule {
   flex: 1 1 auto;
-  min-width: 24px;
+  min-width: 0;
   height: 1px;
   background: linear-gradient(90deg, var(--line-strong), transparent 92%);
 }
@@ -1581,6 +1580,7 @@ h1 {
   display: inline-flex;
   gap: 2px;
   flex: 0 0 auto;
+  flex-shrink: 0;
   margin-left: auto;
   opacity: 0.28;
   transition: opacity 0.15s ease;
@@ -1617,13 +1617,8 @@ h1 {
 #board.searching .section-moves { display: none; }
 
 @container (max-width: 720px) {
-  .section h2 { gap: 6px; flex-wrap: wrap; }
+  .section h2 { gap: 6px; }
   .section-rule { display: none; }
-}
-
-@container (max-width: 480px) {
-  .section-toggle { flex-basis: 100%; max-width: 100%; }
-  .section-moves { margin-left: 0; }
 }
 
 .section-body {

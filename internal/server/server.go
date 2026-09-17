@@ -42,6 +42,11 @@ type sectionNameBody struct {
 	Name string `json:"name"`
 }
 
+type sectionRenameBody struct {
+	Name         string `json:"name"`
+	OriginalName string `json:"originalName"`
+}
+
 type layoutItemBody struct {
 	URL string `json:"url"`
 	Col int    `json:"col"`
@@ -106,6 +111,7 @@ func New(store *config.Store, resolver *icons.Resolver) http.Handler {
 	s.mux.HandleFunc("DELETE /api/item", s.deleteItem)
 	s.mux.HandleFunc("POST /api/item/icon", s.refreshItemIcon)
 	s.mux.HandleFunc("POST /api/section", s.addSection)
+	s.mux.HandleFunc("PUT /api/section", s.renameSection)
 	s.mux.HandleFunc("DELETE /api/section", s.deleteSection)
 	s.mux.HandleFunc("PUT /api/layout", s.setLayout)
 	s.mux.HandleFunc("GET /icons/{key}", s.icon)
@@ -440,6 +446,37 @@ func (s *Server) setLayout(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_, _ = w.Write([]byte(`{"ok":true}`))
+}
+
+func (s *Server) renameSection(w http.ResponseWriter, r *http.Request) {
+	var in sectionRenameBody
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&in); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	oldName := strings.TrimSpace(in.OriginalName)
+	newName := strings.TrimSpace(in.Name)
+	if oldName == "" || newName == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if len(newName) > 80 {
+		http.Error(w, "name too long", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.RenameSection(oldName, newName); err != nil {
+		code := http.StatusBadRequest
+		switch {
+		case errors.Is(err, config.ErrSectionNotFound):
+			code = http.StatusNotFound
+		case errors.Is(err, config.ErrSectionExists):
+			code = http.StatusConflict
+		}
+		http.Error(w, err.Error(), code)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(APISection{Name: newName, Items: []APIItem{}})
 }
 
 func (s *Server) deleteSection(w http.ResponseWriter, r *http.Request) {

@@ -315,3 +315,36 @@ func TestAddAndDeleteSection(t *testing.T) {
 		t.Fatalf("%+v", cfg.Sections)
 	}
 }
+
+func TestRenameSection(t *testing.T) {
+	path := writeTemp(t, `{"title":"v1","sections":[{"name":"A","items":[{"name":"X","url":"http://x.lan"}]},{"name":"B","items":[]}]}`)
+	store, err := NewStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RenameSection("A", "Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RenameSection("Alpha", "B"); !errors.Is(err, ErrSectionExists) {
+		t.Fatalf("dup: %v", err)
+	}
+	if err := store.RenameSection("Missing", "C"); !errors.Is(err, ErrSectionNotFound) {
+		t.Fatalf("missing: %v", err)
+	}
+	if err := store.RenameSection("Missing", "Missing"); !errors.Is(err, ErrSectionNotFound) {
+		t.Fatalf("same missing: %v", err)
+	}
+	if err := store.RenameSection("Alpha", "alpha"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Sections) != 2 || cfg.Sections[0].Name != "alpha" || cfg.Sections[1].Name != "B" {
+		t.Fatalf("%+v", cfg.Sections)
+	}
+	if len(cfg.Sections[0].Items) != 1 || cfg.Sections[0].Items[0].Name != "X" {
+		t.Fatalf("items: %+v", cfg.Sections[0].Items)
+	}
+}

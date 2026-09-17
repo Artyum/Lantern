@@ -424,6 +424,48 @@ func (s *Store) SetLayout(layout []LayoutSection) error {
 	return s.writeLocked(cfg)
 }
 
+func (s *Store) RenameSection(oldName, newName string) error {
+	if s == nil {
+		return fmt.Errorf("store unavailable")
+	}
+	oldName = strings.TrimSpace(oldName)
+	newName = strings.TrimSpace(newName)
+	if oldName == "" || newName == "" {
+		return fmt.Errorf("section name is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cfg, err := s.loadForWrite()
+	if err != nil {
+		return err
+	}
+	index := -1
+	for i, sec := range cfg.Sections {
+		if sec.Name == oldName {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return ErrSectionNotFound
+	}
+	if oldName == newName {
+		return nil
+	}
+	want := strings.ToLower(newName)
+	for j, other := range cfg.Sections {
+		if j != index && strings.ToLower(other.Name) == want {
+			return ErrSectionExists
+		}
+	}
+	cfg.Sections[index].Name = newName
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	return s.writeLocked(cfg)
+}
+
 func (s *Store) DeleteSection(name string) error {
 	if s == nil {
 		return fmt.Errorf("store unavailable")
