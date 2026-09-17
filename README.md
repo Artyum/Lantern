@@ -172,7 +172,7 @@ The dev container mounts the source tree and runs Air for hot-reload on Go, HTML
 | `./deploy/build.sh prod` | Build production image locally as `lantern:local` |
 | `./run_tests.sh` | Run `go test ./...` |
 | `./run_lint_check.sh` | Run gofmt, go vet, and tests |
-| `./run_audit.sh` | Run govulncheck (+ optional Trivy on local image) |
+| `./run_audit.sh` | Run govulncheck and Trivy on a locally built image |
 
 Typical flow:
 

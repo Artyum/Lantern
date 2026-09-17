@@ -115,11 +115,77 @@ function clearDropdownTimer(dropdown) {
   dropdownTimers.delete(dropdown);
 }
 
-function openDropdown(dropdown) {
+const DROPDOWN_MARGIN = 8;
+const DROPDOWN_GAP = 8;
+
+function viewportBox() {
+  const view = window.visualViewport;
+  if (!view) {
+    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  }
+  return {
+    left: view.offsetLeft,
+    top: view.offsetTop,
+    width: view.width,
+    height: view.height,
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function clearDropdownPlacement(dropdown) {
+  dropdown.style.removeProperty("--dropdown-top");
+  dropdown.style.removeProperty("--dropdown-left");
+  dropdown.style.removeProperty("--dropdown-max-height");
+  dropdown.style.removeProperty("--dropdown-origin");
+  dropdown.style.removeProperty("--dropdown-nudge");
+}
+
+function placeDropdown(dropdown, anchor) {
+  if (!dropdown || !anchor || dropdown.hidden) return;
+
+  const view = viewportBox();
+  const maxWidth = Math.max(0, view.width - DROPDOWN_MARGIN * 2);
+  dropdown.style.setProperty("--dropdown-max-height", "none");
+
+  const width = Math.min(dropdown.offsetWidth, maxWidth);
+  const naturalHeight = dropdown.scrollHeight;
+  const anchorRect = anchor.getBoundingClientRect();
+  const left = clamp(
+    anchorRect.right - width,
+    view.left + DROPDOWN_MARGIN,
+    view.left + view.width - DROPDOWN_MARGIN - width,
+  );
+
+  const spaceBelow = view.top + view.height - anchorRect.bottom - DROPDOWN_GAP - DROPDOWN_MARGIN;
+  const spaceAbove = anchorRect.top - view.top - DROPDOWN_GAP - DROPDOWN_MARGIN;
+  const placeBelow = naturalHeight <= spaceBelow || spaceBelow >= spaceAbove;
+  const maxHeight = Math.max(0, placeBelow ? spaceBelow : spaceAbove);
+  const height = Math.min(naturalHeight, maxHeight);
+  const top = placeBelow
+    ? anchorRect.bottom + DROPDOWN_GAP
+    : anchorRect.top - DROPDOWN_GAP - height;
+
+  dropdown.style.setProperty("--dropdown-top", `${top}px`);
+  dropdown.style.setProperty("--dropdown-left", `${left}px`);
+  dropdown.style.setProperty("--dropdown-max-height", `${maxHeight}px`);
+  dropdown.style.setProperty("--dropdown-origin", placeBelow ? "top right" : "bottom right");
+  dropdown.style.setProperty("--dropdown-nudge", placeBelow ? "-6px" : "6px");
+}
+
+function repositionOpenDropdowns() {
+  if (themeMenuOpen()) placeDropdown(themeMenu, themeToggle);
+  if (widthPanelOpen()) placeDropdown(widthPanel, widthToggle);
+}
+
+function openDropdown(dropdown, anchor) {
   clearDropdownTimer(dropdown);
   dropdown.hidden = false;
   dropdown.classList.remove("is-closing");
   dropdown.classList.add("is-opening");
+  placeDropdown(dropdown, anchor);
   const timer = window.setTimeout(() => {
     dropdown.classList.remove("is-opening");
     dropdownTimers.delete(dropdown);
@@ -135,6 +201,7 @@ function closeDropdown(dropdown) {
   const timer = window.setTimeout(() => {
     dropdown.hidden = true;
     dropdown.classList.remove("is-closing");
+    clearDropdownPlacement(dropdown);
     dropdownTimers.delete(dropdown);
   }, 180);
   dropdownTimers.set(dropdown, timer);
@@ -178,7 +245,7 @@ function themeMenuOpen() {
 
 function openThemeMenu() {
   closeWidthPanel();
-  openDropdown(themeMenu);
+  openDropdown(themeMenu, themeToggle);
   themeToggle.setAttribute("aria-expanded", "true");
   themePicker.classList.add("open");
   const selected = themeMenu.querySelector('[aria-selected="true"]');
@@ -253,6 +320,10 @@ document.addEventListener("click", (event) => {
   if (!themePicker.contains(event.target)) closeThemeMenu();
   if (!widthPicker.contains(event.target) && !widthPanel.contains(event.target)) closeWidthPanel();
 });
+window.addEventListener("resize", repositionOpenDropdowns);
+window.addEventListener("scroll", repositionOpenDropdowns, true);
+window.visualViewport?.addEventListener("resize", repositionOpenDropdowns);
+window.visualViewport?.addEventListener("scroll", repositionOpenDropdowns);
 
 let data = { title: "Lantern", sections: [] };
 let didDrag = false;
@@ -265,6 +336,25 @@ const GRID_GAP = 14;
 const GRID_PAD_X = 8;
 const GRID_WIDTH_SAFETY = 16;
 const GRID_ROW_HEIGHT = 148;
+
+function gridTokenPx(name, fallback) {
+  const num = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue(name),
+  );
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function gridCellMin() {
+  return gridTokenPx("--grid-cell-min", GRID_CELL_MIN);
+}
+
+function gridGap() {
+  return gridTokenPx("--grid-gap", GRID_GAP);
+}
+
+function gridRowHeight() {
+  return gridTokenPx("--grid-row-height", GRID_ROW_HEIGHT);
+}
 const gridObservers = new WeakMap();
 let activeNavSection = "";
 let navScrollTarget = "";
@@ -306,8 +396,12 @@ function setSidebarDrawer(open) {
   }
   sectionNavToggle.title = open ? "Close sections" : "Open sections";
   sectionNavToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  if (!open && sectionNav.contains(document.activeElement)) {
+    if (sectionNavEdge && !sectionNavEdge.hidden) sectionNavEdge.focus();
+    else document.activeElement.blur();
+  }
   sectionNav.inert = !open;
-  sectionNav.setAttribute("aria-hidden", open ? "false" : "true");
+  sectionNav.removeAttribute("aria-hidden");
 }
 
 function updateSidebarLayout() {
@@ -411,7 +505,7 @@ function widthPanelOpen() {
 function openWidthPanel() {
   closeThemeMenu();
   updateGridColsPicker();
-  openDropdown(widthPanel);
+  openDropdown(widthPanel, widthToggle);
   widthToggle.setAttribute("aria-expanded", "true");
   widthPicker.classList.add("open");
   gridColsPicker?.querySelector(`[data-cols="${gridCols}"]`)?.focus();
@@ -439,9 +533,20 @@ sectionNavToggle.addEventListener("click", () => {
 
 sectionNavEdge?.addEventListener("click", () => setSidebarDrawer(true));
 sectionNavBackdrop?.addEventListener("click", () => setSidebarDrawer(false));
+function refreshGridLayout() {
+  if (searching()) return;
+  for (const grid of board.querySelectorAll(".grid")) {
+    const sectionName = grid.closest(".section")?.dataset.sectionName;
+    const section = (data.sections || []).find((entry) => entry.name === sectionName);
+    if (!section) continue;
+    syncTilePositions(grid, sectionName, section.items || []);
+  }
+}
+
 COMPACT_MQ.addEventListener("change", () => {
   drawerOpen = false;
   updateSidebarLayout();
+  refreshGridLayout();
 });
 
 function sectionElement(name) {
@@ -698,7 +803,9 @@ function resolvePositions(items, cols) {
 }
 
 function maxColsForWidth(width) {
-  return Math.max(1, Math.floor((width + GRID_GAP) / (GRID_CELL_MIN + GRID_GAP)));
+  const cell = gridCellMin();
+  const gap = gridGap();
+  return Math.max(1, Math.floor((width + gap) / (cell + gap)));
 }
 
 function estimateGridWidth() {
@@ -709,7 +816,9 @@ function estimateGridWidth() {
 
 function effectiveGridCols(grid) {
   const width = grid ? gridInnerWidth(grid) : estimateGridWidth();
-  return Math.min(gridCols, maxColsForWidth(width));
+  const maxFit = maxColsForWidth(width);
+  if (isCompactLayout()) return Math.max(1, maxFit);
+  return Math.min(gridCols, maxFit);
 }
 
 function toDisplayPosition(item, displayCols) {
@@ -726,10 +835,10 @@ function toCanonicalPosition(col, row, displayCols) {
 function gridMetrics(grid) {
   const cols = effectiveGridCols(grid);
   const styles = getComputedStyle(grid);
-  const gap = Number.parseFloat(styles.columnGap) || GRID_GAP;
+  const gap = Number.parseFloat(styles.columnGap) || gridGap();
   const width = gridInnerWidth(grid);
   const cellWidth = (width - gap * (cols - 1)) / cols;
-  const rowHeight = Number.parseFloat(styles.getPropertyValue("--grid-row-height")) || GRID_ROW_HEIGHT;
+  const rowHeight = Number.parseFloat(styles.getPropertyValue("--grid-row-height")) || gridRowHeight();
   return { cols, gap, cellWidth, rowHeight };
 }
 
@@ -745,8 +854,10 @@ function gridMaxRow(items, displayCols) {
 
 function setGridRowCount(grid, rowCount) {
   const rows = Math.max(1, rowCount);
-  grid.style.gridTemplateRows = `repeat(${rows}, minmax(${GRID_ROW_HEIGHT}px, auto))`;
-  grid.style.minHeight = `${rows * GRID_ROW_HEIGHT + Math.max(0, rows - 1) * GRID_GAP + 4}px`;
+  const rowHeight = gridRowHeight();
+  const gap = gridGap();
+  grid.style.gridTemplateRows = `repeat(${rows}, minmax(${rowHeight}px, auto))`;
+  grid.style.minHeight = `${rows * rowHeight + Math.max(0, rows - 1) * gap + 4}px`;
 }
 
 function applyGridSizing(grid, items) {
@@ -1374,7 +1485,6 @@ function render() {
     h.append(toggle, rule, moves);
     const grid = document.createElement("div");
     grid.className = "grid";
-    grid.style.setProperty("--grid-row-height", `${GRID_ROW_HEIGHT}px`);
     grid.addEventListener("dragover", onGridDragOver);
     grid.addEventListener("dragleave", onGridDragLeave);
     grid.addEventListener("drop", onGridDrop);
