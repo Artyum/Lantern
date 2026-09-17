@@ -990,20 +990,17 @@ h1 {
 }
 .theme-menu,
 .width-panel {
-  position: fixed;
-  top: var(--dropdown-top, 0);
-  left: var(--dropdown-left, 0);
-  right: auto;
-  bottom: auto;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
   z-index: 120;
-  max-width: calc(100vw - 16px);
-  max-height: var(--dropdown-max-height, 70vh);
+  max-width: min(280px, calc(100vw - 24px));
+  max-height: min(70vh, calc(100dvh - 24px));
   overflow: auto;
-  overscroll-behavior: contain;
-  transform-origin: var(--dropdown-origin, top right);
 }
 .width-panel {
-  width: min(280px, calc(100vw - 16px));
+  width: min(280px, calc(100vw - 24px));
   padding: 16px 18px 14px;
   border: 1px solid var(--edge-line);
   border-radius: var(--radius);
@@ -1181,7 +1178,7 @@ h1 {
 @keyframes dropdown-in {
   from {
     opacity: 0;
-    transform: translateY(var(--dropdown-nudge, -6px)) scale(0.98);
+    transform: translateY(-6px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -1195,7 +1192,7 @@ h1 {
   }
   to {
     opacity: 0;
-    transform: translateY(var(--dropdown-nudge, -6px)) scale(0.98);
+    transform: translateY(-4px) scale(0.98);
   }
 }
 .theme-menu li { margin: 0; padding: 0; }

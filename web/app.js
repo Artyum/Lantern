@@ -115,77 +115,11 @@ function clearDropdownTimer(dropdown) {
   dropdownTimers.delete(dropdown);
 }
 
-const DROPDOWN_MARGIN = 8;
-const DROPDOWN_GAP = 8;
-
-function viewportBox() {
-  const view = window.visualViewport;
-  if (!view) {
-    return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-  }
-  return {
-    left: view.offsetLeft,
-    top: view.offsetTop,
-    width: view.width,
-    height: view.height,
-  };
-}
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function clearDropdownPlacement(dropdown) {
-  dropdown.style.removeProperty("--dropdown-top");
-  dropdown.style.removeProperty("--dropdown-left");
-  dropdown.style.removeProperty("--dropdown-max-height");
-  dropdown.style.removeProperty("--dropdown-origin");
-  dropdown.style.removeProperty("--dropdown-nudge");
-}
-
-function placeDropdown(dropdown, anchor) {
-  if (!dropdown || !anchor || dropdown.hidden) return;
-
-  const view = viewportBox();
-  const maxWidth = Math.max(0, view.width - DROPDOWN_MARGIN * 2);
-  dropdown.style.setProperty("--dropdown-max-height", "none");
-
-  const width = Math.min(dropdown.offsetWidth, maxWidth);
-  const naturalHeight = dropdown.scrollHeight;
-  const anchorRect = anchor.getBoundingClientRect();
-  const left = clamp(
-    anchorRect.right - width,
-    view.left + DROPDOWN_MARGIN,
-    view.left + view.width - DROPDOWN_MARGIN - width,
-  );
-
-  const spaceBelow = view.top + view.height - anchorRect.bottom - DROPDOWN_GAP - DROPDOWN_MARGIN;
-  const spaceAbove = anchorRect.top - view.top - DROPDOWN_GAP - DROPDOWN_MARGIN;
-  const placeBelow = naturalHeight <= spaceBelow || spaceBelow >= spaceAbove;
-  const maxHeight = Math.max(0, placeBelow ? spaceBelow : spaceAbove);
-  const height = Math.min(naturalHeight, maxHeight);
-  const top = placeBelow
-    ? anchorRect.bottom + DROPDOWN_GAP
-    : anchorRect.top - DROPDOWN_GAP - height;
-
-  dropdown.style.setProperty("--dropdown-top", `${top}px`);
-  dropdown.style.setProperty("--dropdown-left", `${left}px`);
-  dropdown.style.setProperty("--dropdown-max-height", `${maxHeight}px`);
-  dropdown.style.setProperty("--dropdown-origin", placeBelow ? "top right" : "bottom right");
-  dropdown.style.setProperty("--dropdown-nudge", placeBelow ? "-6px" : "6px");
-}
-
-function repositionOpenDropdowns() {
-  if (themeMenuOpen()) placeDropdown(themeMenu, themeToggle);
-  if (widthPanelOpen()) placeDropdown(widthPanel, widthToggle);
-}
-
-function openDropdown(dropdown, anchor) {
+function openDropdown(dropdown) {
   clearDropdownTimer(dropdown);
   dropdown.hidden = false;
   dropdown.classList.remove("is-closing");
   dropdown.classList.add("is-opening");
-  placeDropdown(dropdown, anchor);
   const timer = window.setTimeout(() => {
     dropdown.classList.remove("is-opening");
     dropdownTimers.delete(dropdown);
@@ -201,7 +135,6 @@ function closeDropdown(dropdown) {
   const timer = window.setTimeout(() => {
     dropdown.hidden = true;
     dropdown.classList.remove("is-closing");
-    clearDropdownPlacement(dropdown);
     dropdownTimers.delete(dropdown);
   }, 180);
   dropdownTimers.set(dropdown, timer);
@@ -245,7 +178,7 @@ function themeMenuOpen() {
 
 function openThemeMenu() {
   closeWidthPanel();
-  openDropdown(themeMenu, themeToggle);
+  openDropdown(themeMenu);
   themeToggle.setAttribute("aria-expanded", "true");
   themePicker.classList.add("open");
   const selected = themeMenu.querySelector('[aria-selected="true"]');
@@ -320,10 +253,6 @@ document.addEventListener("click", (event) => {
   if (!themePicker.contains(event.target)) closeThemeMenu();
   if (!widthPicker.contains(event.target) && !widthPanel.contains(event.target)) closeWidthPanel();
 });
-window.addEventListener("resize", repositionOpenDropdowns);
-window.addEventListener("scroll", repositionOpenDropdowns, true);
-window.visualViewport?.addEventListener("resize", repositionOpenDropdowns);
-window.visualViewport?.addEventListener("scroll", repositionOpenDropdowns);
 
 let data = { title: "Lantern", sections: [] };
 let didDrag = false;
@@ -505,7 +434,7 @@ function widthPanelOpen() {
 function openWidthPanel() {
   closeThemeMenu();
   updateGridColsPicker();
-  openDropdown(widthPanel, widthToggle);
+  openDropdown(widthPanel);
   widthToggle.setAttribute("aria-expanded", "true");
   widthPicker.classList.add("open");
   gridColsPicker?.querySelector(`[data-cols="${gridCols}"]`)?.focus();
