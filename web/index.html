@@ -24,6 +24,10 @@
   <div class="shell">
   <header class="top">
     <div class="brand">
+      <button type="button" id="section-nav-edge" class="section-nav-edge tool-icon" hidden aria-controls="section-nav" aria-expanded="false" title="Open sections">
+        <span class="sr-only">Open sections</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.4"/><path d="M9.5 4v16"/><path d="M13 9h4.5M13 12h4.5M13 15h3"/></svg>
+      </button>
       <img class="mark" src="/icons/__logo" alt="" width="42" height="42">
       <div class="brand-copy">
         <h1 id="title">Lantern</h1>
@@ -74,12 +78,14 @@
           </button>
         </div>
         <button type="button" id="section-nav-toggle" class="section-nav-toggle" aria-controls="section-nav-list" aria-expanded="true" title="Collapse sidebar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>
+          <svg class="icon-sidebar-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>
+          <svg class="icon-sidebar-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>
         </button>
       </div>
       <nav aria-label="Sections">
         <ul id="section-nav-list" class="section-nav-list"></ul>
       </nav>
+      <div class="section-nav-handle" aria-hidden="true"></div>
     </aside>
     <div class="workspace-main">
       <main id="board"></main>
@@ -88,10 +94,6 @@
   </div>
   </div>
   <!-- initial-config -->
-  <button type="button" id="section-nav-edge" class="section-nav-edge" hidden aria-controls="section-nav" aria-expanded="false" title="Open sections">
-    <span class="sr-only">Open sections</span>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6l6 6-6 6"/></svg>
-  </button>
   <div id="section-nav-backdrop" class="section-nav-backdrop" hidden></div>
   <dialog id="item-editor" class="item-editor">
     <form id="item-form">

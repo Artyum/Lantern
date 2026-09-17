@@ -540,7 +540,7 @@ func parseItemUpdate(r *http.Request) (itemUpdate, string, []byte, error) {
 			}
 			return itemUpdate{}, "", nil, fmt.Errorf("invalid icon file")
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		body, err := io.ReadAll(io.LimitReader(file, maxIconUpload+1))
 		if err != nil {
 			return itemUpdate{}, "", nil, fmt.Errorf("could not read icon")
@@ -652,10 +652,7 @@ func validKey(key string) bool {
 		}
 		return false
 	}
-	if strings.Contains(key, "..") {
-		return false
-	}
-	return true
+	return !strings.Contains(key, "..")
 }
 
 func writeLogo(w http.ResponseWriter) {

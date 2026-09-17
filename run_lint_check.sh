@@ -13,6 +13,11 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v golangci-lint >/dev/null 2>&1; then
+  echo "[ERROR] golangci-lint is not installed — install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest" >&2
+  exit 1
+fi
+
 echo ""
 echo "============ LINT CHECK (Lantern) ============"
 echo ""
@@ -65,7 +70,7 @@ run_gofmt_check() {
 
 run_step 1 "gofmt -w" run_gofmt_write
 run_step 2 "gofmt -l" run_gofmt_check
-run_step 3 "go vet" go vet ./...
+run_step 3 "golangci-lint" golangci-lint run
 run_step 4 "go test" go test ./... -count=1
 
 echo ""

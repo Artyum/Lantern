@@ -317,11 +317,38 @@ function setSidebarCollapsed(collapsed) {
   );
 }
 
+function drawerPanelWidth() {
+  return sectionNav.getBoundingClientRect().width || Math.min(300, window.innerWidth * 0.88);
+}
+
 function setSidebarDrawer(open) {
   drawerOpen = open;
+  const dragX = sectionNav.style.getPropertyValue("--nav-drawer-x");
+  document.body.classList.remove("nav-drawer-dragging");
+  sectionNav.classList.remove("drawer-dragging");
   document.body.classList.toggle("nav-drawer-open", open);
   sectionNav.classList.toggle("drawer-open", open);
-  if (sectionNavBackdrop) sectionNavBackdrop.hidden = !open;
+  if (dragX) {
+    sectionNav.style.setProperty("--nav-drawer-x", dragX);
+    requestAnimationFrame(() => {
+      sectionNav.style.removeProperty("--nav-drawer-x");
+      if (sectionNavBackdrop) sectionNavBackdrop.style.removeProperty("opacity");
+    });
+  } else if (sectionNavBackdrop) {
+    sectionNavBackdrop.style.removeProperty("opacity");
+  }
+  if (sectionNavBackdrop) {
+    if (open) {
+      sectionNavBackdrop.hidden = false;
+    } else if (dragX) {
+      sectionNavBackdrop.style.opacity = "0";
+      window.setTimeout(() => {
+        if (!drawerOpen && sectionNavBackdrop) sectionNavBackdrop.hidden = true;
+      }, 280);
+    } else {
+      sectionNavBackdrop.hidden = true;
+    }
+  }
   if (sectionNavEdge) {
     sectionNavEdge.hidden = !isCompactLayout() || open || sectionNav.hidden;
     sectionNavEdge.setAttribute("aria-expanded", open ? "true" : "false");
@@ -453,6 +480,7 @@ function closeWidthPanel() {
 function initSidebar() {
   drawerOpen = false;
   updateSidebarLayout();
+  initSidebarGestures();
 }
 
 sectionNavToggle.addEventListener("click", () => {
@@ -463,8 +491,156 @@ sectionNavToggle.addEventListener("click", () => {
   setSidebarCollapsed(!isSidebarCollapsed());
 });
 
-sectionNavEdge?.addEventListener("click", () => setSidebarDrawer(true));
-sectionNavBackdrop?.addEventListener("click", () => setSidebarDrawer(false));
+let suppressEdgeClick = false;
+sectionNavEdge?.addEventListener("click", (event) => {
+  if (suppressEdgeClick) {
+    event.preventDefault();
+    event.stopPropagation();
+    suppressEdgeClick = false;
+    return;
+  }
+  setSidebarDrawer(true);
+});
+sectionNavBackdrop?.addEventListener("click", () => {
+  if (document.body.classList.contains("nav-drawer-dragging")) return;
+  setSidebarDrawer(false);
+});
+
+function initSidebarGestures() {
+  const EDGE_ZONE = 28;
+  const LOCK_PX = 12;
+  let gesture = null;
+
+  function dialogOpen() {
+    const editor = document.getElementById("item-editor");
+    return Boolean(editor?.open);
+  }
+
+  function applyDrag(offsetPx) {
+    const width = drawerPanelWidth();
+    const x = Math.max(-width, Math.min(0, offsetPx));
+    const progress = (x + width) / width;
+    document.body.classList.add("nav-drawer-dragging");
+    document.body.classList.toggle("nav-drawer-open", progress > 0.04);
+    sectionNav.classList.add("drawer-dragging");
+    sectionNav.style.setProperty("--nav-drawer-x", `${x}px`);
+    if (sectionNavBackdrop) {
+      sectionNavBackdrop.hidden = false;
+      sectionNavBackdrop.style.opacity = String(progress);
+    }
+    if (sectionNavEdge) sectionNavEdge.hidden = progress > 0.08 || sectionNav.hidden;
+  }
+
+  function endGesture(event) {
+    if (!gesture || event.pointerId !== gesture.id) return;
+    const width = drawerPanelWidth();
+    const dx = event.clientX - gesture.startX;
+    if (gesture.locked) {
+      suppressEdgeClick = true;
+      window.setTimeout(() => { suppressEdgeClick = false; }, 280);
+      const preventClick = (clickEvent) => {
+        clickEvent.preventDefault();
+        clickEvent.stopPropagation();
+      };
+      document.addEventListener("click", preventClick, { capture: true, once: true });
+      window.setTimeout(() => {
+        document.removeEventListener("click", preventClick, { capture: true });
+      }, 280);
+      const offset = gesture.mode === "open"
+        ? Math.max(-width, Math.min(0, -width + dx))
+        : Math.max(-width, Math.min(0, dx));
+      const progress = (offset + width) / width;
+      let shouldOpen = gesture.vx > 0.4 || (gesture.vx > -0.32 && progress > 0.34);
+      if (gesture.fromEdgeControl && gesture.mode === "open" && dx < 56 && gesture.vx < 0.45) {
+        shouldOpen = dx >= -6;
+      }
+      setSidebarDrawer(shouldOpen);
+    }
+    gesture = null;
+  }
+
+  window.addEventListener("pointerdown", (event) => {
+    if (!isCompactLayout() || sectionNav.hidden || dialogOpen()) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.target.closest?.("input, textarea, select, [contenteditable]")) return;
+    const x = event.clientX;
+    if (drawerOpen) {
+      const rect = sectionNav.getBoundingClientRect();
+      const onDrawer = x <= rect.right + 12;
+      const onBackdrop = event.target === sectionNavBackdrop;
+      if (!onDrawer && !onBackdrop) return;
+      gesture = {
+        id: event.pointerId,
+        startX: x,
+        startY: event.clientY,
+        lastX: x,
+        lastT: event.timeStamp,
+        vx: 0,
+        mode: "close",
+        locked: false,
+      };
+      try {
+        document.documentElement.setPointerCapture(event.pointerId);
+      } catch {
+        /* Pointer capture is unavailable in some embedded browsers. */
+      }
+      return;
+    }
+    const fromEdge = x <= EDGE_ZONE || sectionNavEdge?.contains(event.target);
+    if (!fromEdge) return;
+    try {
+      document.documentElement.setPointerCapture(event.pointerId);
+    } catch {
+      /* Pointer capture is unavailable in some embedded browsers. */
+    }
+    gesture = {
+      id: event.pointerId,
+      startX: x,
+      startY: event.clientY,
+      lastX: x,
+      lastT: event.timeStamp,
+      vx: 0,
+      mode: "open",
+      locked: false,
+      fromEdgeControl: Boolean(sectionNavEdge?.contains(event.target)),
+    };
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!gesture || event.pointerId !== gesture.id) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    const dt = Math.max(1, event.timeStamp - gesture.lastT);
+    gesture.vx = (event.clientX - gesture.lastX) / dt;
+    gesture.lastX = event.clientX;
+    gesture.lastT = event.timeStamp;
+    if (!gesture.locked) {
+      if (Math.abs(dx) < LOCK_PX && Math.abs(dy) < LOCK_PX) return;
+      if (Math.abs(dy) >= Math.abs(dx) * 1.1) {
+        gesture = null;
+        return;
+      }
+      if (gesture.mode === "open" && dx < 0) {
+        gesture = null;
+        return;
+      }
+      if (gesture.mode === "close" && dx > 0) {
+        gesture = null;
+        return;
+      }
+      gesture.locked = true;
+    }
+    event.preventDefault();
+    const width = drawerPanelWidth();
+    const offset = gesture.mode === "open"
+      ? Math.max(-width, Math.min(0, -width + dx))
+      : Math.max(-width, Math.min(0, dx));
+    applyDrag(offset);
+  }, { passive: false });
+
+  window.addEventListener("pointerup", endGesture, true);
+  window.addEventListener("pointercancel", endGesture, true);
+}
 function refreshGridLayout() {
   if (searching()) return;
   for (const grid of board.querySelectorAll(".grid")) {
