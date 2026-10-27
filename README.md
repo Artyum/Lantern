@@ -141,7 +141,7 @@ To make the package public: GitHub → **Packages** → **lantern** → **Packag
 ### Requirements
 
 - Docker with Compose v2
-- Optional: Go 1.27+ for running tests outside Docker
+- Optional: Go 1.27.3+ for running tests outside Docker
 - Optional: external Docker network `traefik-net` if you use the Traefik labels in dev compose
 
 ### Setup

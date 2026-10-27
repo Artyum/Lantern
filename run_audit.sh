@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT}"
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "[ERROR] Go is not installed — install Go 1.27+" >&2
+  echo "[ERROR] Go is not installed — install Go 1.27.3+" >&2
   exit 1
 fi
 
@@ -35,6 +35,8 @@ TRIVY_IMAGE="${TRIVY_IMAGE:-lantern:local}"
 docker build \
   --file Dockerfile \
   --tag "${TRIVY_IMAGE}" \
+  --pull \
+  --build-arg "APK_REFRESH=$(date +%s)" \
   .
 
 TRIVY_JSON="$(mktemp)"

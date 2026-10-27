@@ -1520,17 +1520,50 @@ function showDialog(dialog, focusEl) {
   focusEl?.focus({ preventScroll: true });
 }
 
-function closeDialog(dialog) {
-  if (!dialog?.open) return;
-  if (dialog.dataset.closeTimer) return;
-  dialog.classList.remove("is-opening");
-  dialog.classList.add("is-closing");
-  const timer = window.setTimeout(() => {
-    delete dialog.dataset.closeTimer;
-    dialog.classList.remove("is-closing");
-    dialog.close();
-  }, 180);
-  dialog.dataset.closeTimer = String(timer);
+function closeDialog(dialog, immediate = false) {
+  if (!dialog) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const onClose = () => {
+      dialog.removeEventListener("close", onClose);
+      resolve();
+    };
+
+    if (dialog.dataset.closeTimer) {
+      window.clearTimeout(Number(dialog.dataset.closeTimer));
+      delete dialog.dataset.closeTimer;
+    }
+
+    if (immediate) {
+      dialog.classList.remove("is-opening", "is-closing");
+      if (!dialog.open) {
+        resolve();
+        return;
+      }
+      dialog.addEventListener("close", onClose);
+      dialog.close();
+      return;
+    }
+
+    if (!dialog.open) {
+      resolve();
+      return;
+    }
+    if (dialog.classList.contains("is-closing")) {
+      dialog.addEventListener("close", onClose);
+      return;
+    }
+
+    dialog.classList.remove("is-opening");
+    dialog.classList.add("is-closing");
+    dialog.addEventListener("close", onClose);
+    const timer = window.setTimeout(() => {
+      delete dialog.dataset.closeTimer;
+      dialog.classList.remove("is-closing");
+      dialog.close();
+    }, 180);
+    dialog.dataset.closeTimer = String(timer);
+  });
 }
 
 for (const dialog of document.querySelectorAll("dialog")) {
@@ -1714,12 +1747,12 @@ function openCreate(sectionName) {
   fillEditor(sectionName, null);
 }
 
-function closeEditor() {
+function closeEditor(immediate = false) {
   clearPreviewObjectUrl();
   editing = null;
   itemForm.reset();
   showItemError("");
-  closeDialog(editor);
+  return closeDialog(editor, immediate);
 }
 
 itemCancel.addEventListener("click", () => closeEditor());
@@ -1808,7 +1841,7 @@ itemForm.addEventListener("submit", async (event) => {
       itemSave.disabled = false;
       return;
     }
-    closeEditor();
+    await closeEditor(true);
     await boot();
   } catch {
     showItemError("Could not save.");
@@ -1832,10 +1865,10 @@ function openDeleteItem() {
   showDialog(itemConfirm);
 }
 
-function closeDeleteItem() {
+function closeDeleteItem(immediate = false) {
   deletingItem = null;
   showSectionError(itemConfirmError, "");
-  closeDialog(itemConfirm);
+  return closeDialog(itemConfirm, immediate);
 }
 
 itemDelete.addEventListener("click", openDeleteItem);
@@ -1858,7 +1891,7 @@ itemConfirmForm.addEventListener("submit", async (event) => {
       itemConfirmOk.disabled = false;
       return;
     }
-    closeDeleteItem();
+    await closeDeleteItem(true);
     await boot();
   } catch {
     showSectionError(itemConfirmError, "Could not delete tile.");
@@ -1897,11 +1930,11 @@ function openRenameSection(section) {
   showDialog(sectionEditor, sectionNameInput);
 }
 
-function closeAddSection() {
+function closeAddSection(immediate = false) {
   renamingSection = null;
   sectionForm.reset();
   showSectionError(sectionError, "");
-  closeDialog(sectionEditor);
+  return closeDialog(sectionEditor, immediate);
 }
 
 function tileCountLabel(count) {
@@ -1920,10 +1953,10 @@ function openDeleteSection(section) {
   showDialog(sectionConfirm);
 }
 
-function closeDeleteSection() {
+function closeDeleteSection(immediate = false) {
   deletingSection = null;
   showSectionError(sectionConfirmError, "");
-  closeDialog(sectionConfirm);
+  return closeDialog(sectionConfirm, immediate);
 }
 
 addSectionBtn.addEventListener("click", openAddSection);
@@ -1954,7 +1987,7 @@ sectionForm.addEventListener("submit", async (event) => {
       return;
     }
     if (originalName && originalName !== name) renameCollapsedSection(originalName, name);
-    closeAddSection();
+    await closeAddSection(true);
     await boot();
   } catch {
     showSectionError(sectionError, originalName ? "Could not rename section." : "Could not add section.");
@@ -1981,7 +2014,7 @@ sectionConfirmForm.addEventListener("submit", async (event) => {
       sectionConfirmOk.disabled = false;
       return;
     }
-    closeDeleteSection();
+    await closeDeleteSection(true);
     await boot();
   } catch {
     showSectionError(sectionConfirmError, "Could not delete section.");

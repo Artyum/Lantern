@@ -8,7 +8,7 @@ mkdir -p report
 LOG="${ROOT}/report/test.log"
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "[ERROR] Go is not installed — install Go 1.27+" >&2
+  echo "[ERROR] Go is not installed — install Go 1.27.3+" >&2
   exit 1
 fi
 

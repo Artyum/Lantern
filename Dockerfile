@@ -1,5 +1,6 @@
-FROM golang:1.27-alpine AS toolchain
+FROM golang:1.27.3-alpine AS toolchain
 WORKDIR /src
+ARG APK_REFRESH=0
 RUN apk upgrade --no-cache \
     && apk add --no-cache git curl
 RUN go install github.com/air-verse/air@v1.61.7

@@ -9,12 +9,12 @@ TOTAL=4
 mkdir -p report
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "[ERROR] Go is not installed — install Go 1.27+" >&2
+  echo "[ERROR] Go is not installed — install Go 1.27.3+" >&2
   exit 1
 fi
 
 if ! command -v golangci-lint >/dev/null 2>&1; then
-  echo "[ERROR] golangci-lint is not installed — install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest" >&2
+  echo "[ERROR] golangci-lint is not installed — install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0" >&2
   exit 1
 fi
 
