@@ -1473,16 +1473,30 @@ function moveButton(label, icon, disabled, onClick, extraClass) {
   return btn;
 }
 
-let savedScroll = null;
+let heldViewport = null;
+let keepViewport = false;
+const dialogViewport = new WeakMap();
 
-function saveScroll() {
-  savedScroll = { x: window.scrollX, y: window.scrollY };
+function placeViewport(pos) {
+  if (!pos) return;
+  if (window.scrollX === pos.x && window.scrollY === pos.y) return;
+  window.scrollTo(pos.x, pos.y);
 }
 
-function restoreScroll() {
-  if (!savedScroll) return;
-  window.scrollTo(savedScroll.x, savedScroll.y);
-  savedScroll = null;
+function releaseBoardFocus() {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && board.contains(active)) active.blur();
+}
+
+async function closeAndReload(close) {
+  keepViewport = true;
+  try {
+    await close();
+    await boot();
+  } finally {
+    keepViewport = false;
+    if (!document.querySelector("dialog[open]")) heldViewport = null;
+  }
 }
 
 function animateSectionReorder(beforePositions) {
@@ -1512,9 +1526,12 @@ function showDialog(dialog, focusEl) {
     window.clearTimeout(Number(dialog.dataset.closeTimer));
     delete dialog.dataset.closeTimer;
   }
-  saveScroll();
+  const pin = { x: window.scrollX, y: window.scrollY };
+  dialogViewport.set(dialog, pin);
+  heldViewport = pin;
   dialog.classList.remove("is-closing");
   dialog.showModal();
+  placeViewport(pin);
   dialog.classList.add("is-opening");
   window.setTimeout(() => dialog.classList.remove("is-opening"), 240);
   focusEl?.focus({ preventScroll: true });
@@ -1577,13 +1594,20 @@ for (const dialog of document.querySelectorAll("dialog")) {
       window.clearTimeout(Number(dialog.dataset.closeTimer));
       delete dialog.dataset.closeTimer;
     }
-    restoreScroll();
+    const pin = dialogViewport.get(dialog);
+    dialogViewport.delete(dialog);
+    placeViewport(pin);
+    if (heldViewport === pin && !keepViewport) heldViewport = null;
+    requestAnimationFrame(() => placeViewport(pin));
   });
 }
 
 function render() {
   const query = (q.value || "").trim().toLowerCase();
-  const scroll = savedScroll || { x: window.scrollX, y: window.scrollY };
+  const scroll = heldViewport || { x: window.scrollX, y: window.scrollY };
+  if (!document.querySelector("dialog[open]")) heldViewport = null;
+  releaseBoardFocus();
+  document.documentElement.classList.add("is-rerendering");
   board.classList.remove("ready");
   dropPlaceholder = null;
   dropHoverCell = null;
@@ -1677,11 +1701,15 @@ function render() {
     empty.textContent = "No matching services.";
   }
   renderNav(query);
-  window.scrollTo(scroll.x, scroll.y);
-  savedScroll = null;
+  placeViewport(scroll);
+  // Anchoring has to stay off for the layout that follows this rebuild.
+  // It comes back on the next frame, so collapsing a section still holds position.
   requestAnimationFrame(() => {
     board.classList.add("ready");
     setupNavObserver();
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove("is-rerendering");
+    });
   });
 }
 
@@ -1841,8 +1869,7 @@ itemForm.addEventListener("submit", async (event) => {
       itemSave.disabled = false;
       return;
     }
-    await closeEditor(true);
-    await boot();
+    await closeAndReload(() => closeEditor(true));
   } catch {
     showItemError("Could not save.");
     itemSave.disabled = false;
@@ -1891,8 +1918,7 @@ itemConfirmForm.addEventListener("submit", async (event) => {
       itemConfirmOk.disabled = false;
       return;
     }
-    await closeDeleteItem(true);
-    await boot();
+    await closeAndReload(() => closeDeleteItem(true));
   } catch {
     showSectionError(itemConfirmError, "Could not delete tile.");
     itemConfirmOk.disabled = false;
@@ -1987,8 +2013,7 @@ sectionForm.addEventListener("submit", async (event) => {
       return;
     }
     if (originalName && originalName !== name) renameCollapsedSection(originalName, name);
-    await closeAddSection(true);
-    await boot();
+    await closeAndReload(() => closeAddSection(true));
   } catch {
     showSectionError(sectionError, originalName ? "Could not rename section." : "Could not add section.");
     sectionSave.disabled = false;
@@ -2014,8 +2039,7 @@ sectionConfirmForm.addEventListener("submit", async (event) => {
       sectionConfirmOk.disabled = false;
       return;
     }
-    await closeDeleteSection(true);
-    await boot();
+    await closeAndReload(() => closeDeleteSection(true));
   } catch {
     showSectionError(sectionConfirmError, "Could not delete section.");
     sectionConfirmOk.disabled = false;

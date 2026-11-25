@@ -1853,17 +1853,26 @@ h1 {
 }
 
 .item-editor {
+  position: fixed;
+  inset: 0;
+  height: fit-content;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   border: 1px solid var(--color-frame);
   border-radius: var(--radius);
   background: var(--surface-gradient);
   color: var(--ink);
   padding: 0;
   width: min(420px, calc(100vw - 28px));
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
   box-shadow: var(--shadow-float);
   backdrop-filter: blur(24px);
   font-size: 1.02rem;
   line-height: 1.4;
+}
+html.is-rerendering {
+  overflow-anchor: none;
 }
 .item-editor.is-opening {
   animation: modal-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;

@@ -1,4 +1,4 @@
-FROM golang:1.27.3-alpine AS toolchain
+FROM golang:1.27.4-alpine AS toolchain
 WORKDIR /src
 ARG APK_REFRESH=0
 RUN apk upgrade --no-cache \
